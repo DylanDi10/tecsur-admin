@@ -1,29 +1,37 @@
 'use client';
 
-import { Lock, Mail, HardHat, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { Lock, Mail, HardHat, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { Inter } from 'next/font/google';
 
-// Configurando la fuente Inter para un aspecto más corporativo y menos "plantilla"
 const inter = Inter({ subsets: ['latin'] });
 
 export default function LoginPage() {
+  // Estados para manejar el ojito y las credenciales de demo
+  const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [email, setEmail] = useState('admin@tecsur.com');
+  const [password, setPassword] = useState('Admin1234!');
+
+  const handleLogin = () => {
+    // Como es una demo, pasamos directo al panel
+    window.location.href = '/dashboard';
+  };
+
   return (
     <div className={`min-h-screen flex items-center justify-center p-4 relative overflow-hidden ${inter.className}`}>
       
-      {/* Fondo claro con formas y desenfoque (Glass style background) */}
+      {/* Fondo claro con formas y desenfoque */}
       <div className="absolute inset-0 bg-slate-50">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-400/20 rounded-full blur-3xl"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-400/20 rounded-full blur-3xl"></div>
       </div>
       
-      {/* Contenedor Principal con efecto Glassmorphism */}
+      {/* Contenedor Principal */}
       <div className="relative w-full max-w-5xl grid md:grid-cols-2 rounded-3xl overflow-hidden border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] backdrop-blur-md bg-white/70">
         
-        {/* Panel Izquierdo - Branding con overlay translúcido */}
+        {/* Panel Izquierdo - Branding */}
         <div className="hidden md:flex flex-col justify-between p-12 relative overflow-hidden">
-          {/* Imagen de fondo del panel izquierdo */}
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1504307651254-35680f356f58?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center"></div>
-          {/* Capa de color sobre la imagen */}
           <div className="absolute inset-0 bg-blue-900/85"></div>
           
           <div className="relative z-10 text-white">
@@ -61,12 +69,14 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-slate-400" />
+                    {/* Ícono más oscuro para que resalte */}
+                    <Mail className="h-5 w-5 text-slate-600" />
                   </div>
                   <input
                     type="email"
-                    className="block w-full pl-11 pr-4 py-3.5 bg-white/80 border border-slate-200 text-slate-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none placeholder:text-slate-400 font-medium shadow-sm backdrop-blur-sm"
-                    placeholder="usuario@contratista.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="block w-full pl-11 pr-4 py-3.5 bg-white/80 border border-slate-200 text-slate-900 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none font-medium shadow-sm backdrop-blur-sm"
                   />
                 </div>
               </div>
@@ -77,19 +87,34 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-slate-400" />
+                    {/* Ícono más oscuro para que resalte */}
+                    <Lock className="h-5 w-5 text-slate-600" />
                   </div>
                   <input
-                    type="password"
-                    className="block w-full pl-11 pr-4 py-3.5 bg-white/80 border border-slate-200 text-slate-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none placeholder:text-slate-400 font-medium shadow-sm backdrop-blur-sm"
-                    placeholder="••••••••"
+                    type={mostrarPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full pl-11 pr-12 py-3.5 bg-white/80 border border-slate-200 text-slate-900 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none font-medium shadow-sm backdrop-blur-sm"
                   />
+                  
+                  {/* Botón del ojito */}
+                  <button
+                    type="button"
+                    onClick={() => setMostrarPassword(!mostrarPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-blue-600 transition-colors"
+                  >
+                    {mostrarPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
                 </div>
               </div>
 
               <button
                 type="button"
-                onClick={() => window.location.href = '/dashboard'}
+                onClick={handleLogin}
                 className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all mt-4"
               >
                 Iniciar Sesión
@@ -98,7 +123,7 @@ export default function LoginPage() {
 
             <div className="mt-12 pt-6 border-t border-slate-200/60 text-center md:text-left">
               <p className="text-xs text-slate-400 font-medium">
-                © 2026 TECSUR. Todos los derechos reservados.
+                © {new Date().getFullYear()} TECSUR. Todos los derechos reservados.
               </p>
             </div>
             
