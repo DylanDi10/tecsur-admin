@@ -1,57 +1,83 @@
-import { Building2, FileSpreadsheet, Users, LogOut, LayoutDashboard } from 'lucide-react';
+'use client';
+
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { Building2, LayoutDashboard, FileSpreadsheet, Users, LogOut } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // Esta línea es la magia: detecta en qué URL estamos parados
+  const pathname = usePathname();
+
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      
+    <div className="flex h-screen bg-slate-50">
       {/* Menú Lateral (Sidebar) */}
-      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col transition-all">
-        <div className="h-16 flex items-center px-6 bg-slate-950 border-b border-slate-800">
+      <aside className="w-64 bg-[#0B1120] text-slate-300 flex flex-col transition-all">
+        
+        {/* Logo */}
+        <div className="h-16 flex items-center px-6 border-b border-slate-800">
           <Building2 className="w-6 h-6 text-blue-500 mr-3" />
-          <span className="text-white font-bold text-lg tracking-wide">TECSUR</span>
+          <span className="text-white font-bold tracking-wider text-lg">TECSUR</span>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          <Link href="/dashboard" className="flex items-center px-4 py-3 bg-blue-600/10 text-blue-400 rounded-lg font-medium transition-colors">
-            <LayoutDashboard className="w-5 h-5 mr-3" />
-            Inicio
+        {/* Links de Navegación */}
+        <nav className="flex-1 py-6 px-4 space-y-2">
+          
+          <Link 
+            href="/dashboard" 
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+              pathname === '/dashboard' 
+                ? 'bg-slate-800/80 text-blue-400' 
+                : 'hover:bg-slate-800/50 hover:text-white'
+            }`}
+          >
+            <LayoutDashboard className="w-5 h-5" />
+            <span className="font-medium">Inicio</span>
           </Link>
-          <Link href="/dashboard/subir-excel" className="flex items-center px-4 py-3 hover:bg-slate-800 hover:text-white rounded-lg font-medium transition-colors">
-            <FileSpreadsheet className="w-5 h-5 mr-3" />
-            Cargar Plantilla
+
+          <Link 
+            href="/dashboard/subir-excel" 
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+              pathname === '/dashboard/subir-excel' 
+                ? 'bg-slate-800/80 text-blue-400' 
+                : 'hover:bg-slate-800/50 hover:text-white'
+            }`}
+          >
+            <FileSpreadsheet className="w-5 h-5" />
+            <span className="font-medium">Cargar Plantilla</span>
           </Link>
-          <Link href="/dashboard/registros" className="flex items-center px-4 py-3 hover:bg-slate-800 hover:text-white rounded-lg font-medium transition-colors">
-            <Users className="w-5 h-5 mr-3" />
-            Sábana Maestra
+
+          <Link 
+            href="/dashboard/registros" 
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+              pathname === '/dashboard/registros' 
+                ? 'bg-slate-800/80 text-blue-400' 
+                : 'hover:bg-slate-800/50 hover:text-white'
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            <span className="font-medium">Sábana Maestra</span>
           </Link>
+          
         </nav>
 
+        {/* Botón de Salir */}
         <div className="p-4 border-t border-slate-800">
-          <Link href="/" className="flex items-center px-4 py-3 hover:bg-red-500/10 hover:text-red-400 rounded-lg font-medium transition-colors">
-            <LogOut className="w-5 h-5 mr-3" />
-            Cerrar Sesión
+          <Link 
+            href="/" 
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Cerrar Sesión</span>
           </Link>
         </div>
       </aside>
 
-      {/* Área de Contenido Principal */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm z-10">
-          <h2 className="text-slate-800 font-semibold text-lg">Portal de Gestión SSOMA</h2>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
-              AD
-            </div>
-            <span className="text-sm font-medium text-slate-600">Administrador</span>
-          </div>
-        </header>
-        
-        <div className="flex-1 overflow-auto p-8">
-          {children} {/* Aquí aparecerán las distintas pantallas */}
+      {/* Área principal donde cargan las páginas */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="p-8">
+          {children}
         </div>
       </main>
-
     </div>
   );
 }
