@@ -123,7 +123,7 @@ export default function LoginPage() {
 
             <div className="mt-12 pt-6 border-t border-slate-200/60 text-center md:text-left">
               <p className="text-xs text-slate-400 font-medium">
-                © {new Date().getFullYear()} TECSUR. Todos los derechos reservados.
+                © TECSUR. Todos los derechos reservados.
               </p>
             </div>
             
