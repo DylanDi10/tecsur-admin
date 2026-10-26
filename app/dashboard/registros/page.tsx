@@ -75,7 +75,7 @@ export default function RegistrosPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Sábana Maestra</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Directorio SSOMA</h1>
           <p className="text-slate-500 mt-1">Doble clic en cualquier celda para editar (Cargo o Género).</p>
         </div>
         
