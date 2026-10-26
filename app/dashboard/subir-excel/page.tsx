@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { UploadCloud, FileSpreadsheet, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-// import { supabase } from '@/lib/supabase'; // Asegúrate de descomentar esto cuando conectes Supabase real
+import { supabase } from '@/lib/supabase'; // Asegúrate de descomentar esto cuando conectes Supabase real
 
 export default function SubirExcel() {
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -40,33 +40,55 @@ export default function SubirExcel() {
         // Convertimos la hoja a JSON
         const json = XLSX.utils.sheet_to_json(worksheet);
 
-        // 2. Mapeo Inteligente: Emparejamos las columnas rebeldes del Excel con la Base de Datos
+        // NUEVA FUNCIÓN: Traductor de fechas de Excel (DD/MM/YYYY) a Base de Datos (YYYY-MM-DD)
+        const formatearFecha = (fecha: any) => {
+          if (!fecha) return null;
+          const strFecha = String(fecha).trim();
+          
+          if (strFecha.includes('/')) {
+            const partes = strFecha.split('/');
+            if (partes.length === 3) {
+              const [dia, mes, anio] = partes;
+              return `${anio}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+            }
+          }
+          return strFecha; 
+        };
+
+        // 2. Mapeo Inteligente (Aquí SÍ se usa datosLimpios)
         const datosLimpios = json.map((fila: any) => ({
           nombres: fila['Apellidos y Nombres'] || null,
           dni: fila['Documento'] ? String(fila['Documento']) : null,
-          tipo_documento: fila['Documento \nIdentidad'] || fila['Documento Identidad'] || fila['Documento Identidad'] || null,
-          fecha_nacimiento: fila['Fecha Nacimiento'] ? String(fila['Fecha Nacimiento']) : null,
+          tipo_documento: fila['Documento \nIdentidad'] || fila['Documento Identidad'] || null,
+          fecha_nacimiento: formatearFecha(fila['Fecha Nacimiento']),
           genero: fila['Género'] || null,
           distrito: fila['Distrito'] || null,
-          nacionalidad: fila['Nacionalidad '] || fila['Nacionalidad'] || null, // El Excel original tiene un espacio al final
+          nacionalidad: fila['Nacionalidad '] || fila['Nacionalidad'] || null,
           empresa: fila['Empresa'] || null,
           area: fila['Area'] || null,
           cargo: fila['Cargo'] || null,
-          fecha_emo: fila['Fecha EMO'] ? String(fila['Fecha EMO']) : null,
-          fecha_ingreso: fila['Fecha de Ingreso'] ? String(fila['Fecha de Ingreso']) : null,
-          fecha_cese: fila['Fecha de cese'] ? String(fila['Fecha de cese']) : null
-        })).filter((fila: any) => fila.dni && fila.nombres); // Ignoramos filas totalmente vacías
+          fecha_emo: formatearFecha(fila['Fecha EMO']),
+          fecha_ingreso: formatearFecha(fila['Fecha de Ingreso']),
+          fecha_cese: formatearFecha(fila['Fecha de cese'])
+        })).filter((fila: any) => fila.dni && fila.nombres); 
 
-        setCantidadProcesada(datosLimpios.length);
+        // Filtro Anti-Duplicados (Aquí convertimos datosLimpios en datosSinDuplicados)
+        const datosSinDuplicados = Object.values(
+          datosLimpios.reduce((acumulador: any, fila: any) => {
+            acumulador[fila.dni] = fila; 
+            return acumulador;
+          }, {})
+        );
 
-        // 3. AQUÍ VA LA INSERCIÓN A SUPABASE (Ejemplo comentado para cuando lo actives)
-        /*
+        setCantidadProcesada(datosSinDuplicados.length);
+
+        // 3. Inserción (Aquí es el ÚNICO lugar donde enviamos datosSinDuplicados a Supabase)
         const { error } = await supabase
           .from('trabajadores')
-          .upsert(datosLimpios, { onConflict: 'dni' }); // upsert actualiza si el DNI ya existe
+          .upsert(datosSinDuplicados, { onConflict: 'dni' }); 
         
         if (error) throw error;
-        */
+        
 
         setMensaje({ 
           tipo: 'exito', 

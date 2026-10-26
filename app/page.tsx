@@ -1,133 +1,123 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Mail, HardHat, ShieldCheck, Eye, EyeOff } from 'lucide-react';
-import { Inter } from 'next/font/google';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import { Building2, Lock, Mail, Loader2, AlertCircle } from 'lucide-react';
 
-const inter = Inter({ subsets: ['latin'] });
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState('');
+  const router = useRouter();
 
-export default function LoginPage() {
-  // Estados para manejar el ojito y las credenciales de demo
-  const [mostrarPassword, setMostrarPassword] = useState(false);
-  const [email, setEmail] = useState('admin@tecsur.com');
-  const [password, setPassword] = useState('Admin1234!');
+  const iniciarSesion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCargando(true);
+    setError('');
 
-  const handleLogin = () => {
-    // Como es una demo, pasamos directo al panel
-    window.location.href = '/dashboard';
+    // Conexión real con la autenticación de Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError('Correo o contraseña incorrectos.');
+      setCargando(false);
+    } else {
+      // Si el acceso es correcto, pasa al sistema
+      router.push('/dashboard');
+      // Apagamos el botón para que esté listo si el usuario cierra sesión
+      setCargando(false);
+      // Limpiamos la contraseña por seguridad
+      setPassword(''); 
+    }
   };
 
   return (
-    <div className={`min-h-screen flex items-center justify-center p-4 relative overflow-hidden ${inter.className}`}>
+    <div className="min-h-screen bg-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
       
-      {/* Fondo claro con formas y desenfoque */}
-      <div className="absolute inset-0 bg-slate-50">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-400/20 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-400/20 rounded-full blur-3xl"></div>
+      {/* Círculos decorativos de fondo */}
+      <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
+      <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-cyan-600/20 rounded-full blur-3xl"></div>
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        <div className="flex justify-center items-center gap-3 mb-6">
+          <div className="bg-blue-600 p-3 rounded-xl">
+            <Building2 className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-3xl font-extrabold text-white tracking-wider">
+            TECSUR
+          </h1>
+        </div>
+        <h2 className="text-center text-lg text-slate-400 font-medium">
+          Sistema de Gestión SSOMA
+        </h2>
       </div>
-      
-      {/* Contenedor Principal */}
-      <div className="relative w-full max-w-5xl grid md:grid-cols-2 rounded-3xl overflow-hidden border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] backdrop-blur-md bg-white/70">
-        
-        {/* Panel Izquierdo - Branding */}
-        <div className="hidden md:flex flex-col justify-between p-12 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1504307651254-35680f356f58?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center"></div>
-          <div className="absolute inset-0 bg-blue-900/85"></div>
-          
-          <div className="relative z-10 text-white">
-            <div className="flex items-center gap-3 mb-10">
-              <ShieldCheck className="w-9 h-9 text-blue-300" />
-              <span className="text-2xl font-extrabold tracking-tight">TECSUR</span>
-            </div>
-            <h2 className="text-4xl font-extrabold leading-tight mb-6">
-              Gestión Centralizada<br/>de Contratistas
-            </h2>
-            <p className="text-blue-100 text-lg max-w-md font-medium leading-relaxed opacity-90">
-              Plataforma oficial para el control, validación y seguimiento de capacitaciones SSOMA.
-            </p>
-          </div>
 
-          <div className="relative z-10 flex items-center gap-3 text-sm font-semibold text-blue-200 bg-black/20 w-fit px-4 py-2 rounded-full backdrop-blur-sm">
-            <HardHat className="w-4 h-4" />
-            <span>Seguridad y Salud en el Trabajo</span>
-          </div>
-        </div>
-
-        {/* Panel Derecho - Formulario de Login */}
-        <div className="p-8 md:p-14 flex flex-col justify-center bg-white/50">
-          <div className="w-full max-w-sm mx-auto">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        <div className="bg-slate-800 py-8 px-4 shadow-2xl sm:rounded-2xl sm:px-10 border border-slate-700">
+          <form className="space-y-6" onSubmit={iniciarSesion}>
             
-            <div className="mb-10 text-center md:text-left">
-              <h1 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">Bienvenido</h1>
-              <p className="text-slate-500 font-medium">Ingresa tus credenciales para acceder al portal.</p>
+            <div>
+              <label className="block text-sm font-medium text-slate-300">
+                Correo Electrónico
+              </label>
+              <div className="mt-2 relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-slate-600 rounded-xl bg-slate-900 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm"
+                  placeholder="usuario@tecsur.com"
+                />
+              </div>
             </div>
 
-            <form className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Correo Electrónico
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none z-10">
-                    <Mail className="h-5 w-5 text-slate-600" />
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3.5 bg-white/80 border border-slate-200 text-slate-900 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none font-medium shadow-sm backdrop-blur-sm"
-                  />
+            <div>
+              <label className="block text-sm font-medium text-slate-300">
+                Contraseña
+              </label>
+              <div className="mt-2 relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-slate-500" />
                 </div>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-slate-600 rounded-xl bg-slate-900 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm"
+                  placeholder="••••••••"
+                />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Contraseña
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none z-10">
-                    <Lock className="h-5 w-5 text-slate-600" />
-                  </div>
-                  <input
-                    type={mostrarPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-11 pr-12 py-3.5 bg-white/80 border border-slate-200 text-slate-900 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none font-medium shadow-sm backdrop-blur-sm"
-                  />
-                  
-                  {/* Botón del ojito */}
-                  <button
-                    type="button"
-                    onClick={() => setMostrarPassword(!mostrarPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-blue-600 transition-colors"
-                  >
-                    {mostrarPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                <p className="text-sm text-red-500">{error}</p>
               </div>
+            )}
 
+            <div>
               <button
-                type="button"
-                onClick={handleLogin}
-                className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all mt-4"
+                type="submit"
+                disabled={cargando}
+                className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                Iniciar Sesión
+                {cargando ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                {cargando ? 'Verificando...' : 'Ingresar al Sistema'}
               </button>
-            </form>
-
-            <div className="mt-12 pt-6 border-t border-slate-200/60 text-center md:text-left">
-              <p className="text-xs text-slate-400 font-medium">
-                © TECSUR. Todos los derechos reservados.
-              </p>
             </div>
-            
-          </div>
+          </form>
         </div>
-
       </div>
     </div>
   );
