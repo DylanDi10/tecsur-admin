@@ -127,7 +127,34 @@ export default function SubirExcel() {
 
           if (errorCap) throw errorCap;
         }
+        // ==========================================
+        // 3. PROCESAR HOJA HHT (Estadísticas Mensuales)
+        // ==========================================
+        const hojaHHT = workbook.Sheets['HHT'];
+        
+        if (hojaHHT) {
+          const jsonHHT = XLSX.utils.sheet_to_json(hojaHHT);
+          
+          const datosHHTLimpios = jsonHHT.map((fila: any) => ({
+            empresa: fila['Empresa'] || null,
+            edi: fila['EDI'] || null,
+            fecha: formatearFecha(fila['Fecha']),
+            empleados: parseInt(fila['Empleados']) || 0,
+            obreros: parseInt(fila['Obreros']) || 0,
+            total_personal: parseInt(fila['Total']) || 0,
+            hht_mensual: parseFloat(fila['HHT Mensual']) || 0,
+            accidentes: parseInt(fila['Accidentes']) || 0,
+            dias_perdidos: parseInt(fila['Dias Perdidos']) || 0
+          })).filter((fila: any) => fila.empresa && fila.fecha); 
 
+          if (datosHHTLimpios.length > 0) {
+            const { error: errorHHT } = await supabase
+              .from('registro_hht')
+              .upsert(datosHHTLimpios, { onConflict: 'empresa,edi,fecha' });
+
+            if (errorHHT) throw errorHHT;
+          }
+        }
         // ==========================================
         // ÉXITO
         // ==========================================

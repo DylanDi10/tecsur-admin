@@ -222,19 +222,22 @@ export default function DashboardInicio() {
           </div>
         </div>
 
-        <div className="relative w-48 h-48 shrink-0 flex items-center justify-center">
+        <div className="relative w-32 h-32 shrink-0 flex items-center justify-center mx-auto md:mx-0">
           <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+            {/* Círculo de fondo (Gris suave) */}
             <path
-              className="text-red-500"
+              className="text-slate-100"
               fill="none"
-              strokeWidth="8"
+              strokeWidth="3.5"
               stroke="currentColor"
               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
             />
+            {/* Círculo de progreso (Verde) */}
             <path
-              className="text-green-500 transition-all duration-1000 ease-out"
+              className={`${metricas.cursosVigentes < metricas.totalCapacitaciones ? 'text-amber-500' : 'text-green-500'} transition-all duration-1000 ease-out`}
               fill="none"
-              strokeWidth="8"
+              strokeWidth="3.5"
+              strokeLinecap="round"
               strokeDasharray={`${metricas.totalCapacitaciones > 0 ? (metricas.cursosVigentes / metricas.totalCapacitaciones) * 100 : 0}, 100`}
               stroke="currentColor"
               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
