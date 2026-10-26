@@ -1,181 +1,141 @@
 'use client';
 
 import { useState } from 'react';
-import { UploadCloud, FileSpreadsheet, CheckCircle2, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-// Importamos nuestra conexión a Supabase
-import { supabase } from '../../../lib/supabase';
-export default function SubirExcelPage() {
-  const [archivo, setArchivo] = useState<File | null>(null);
-  const [datosPreview, setDatosPreview] = useState<any[]>([]);
-  const [analizando, setAnalizando] = useState(false);
-  
-  // Nuevos estados para el guardado en Base de Datos
-  const [subiendo, setSubiendo] = useState(false);
-  const [mensaje, setMensaje] = useState<{ texto: string, tipo: 'exito' | 'error' } | null>(null);
+import { UploadCloud, FileSpreadsheet, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+// import { supabase } from '@/lib/supabase'; // Asegúrate de descomentar esto cuando conectes Supabase real
 
-  // 1. Leer el Excel en el navegador
-  const manejarArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+export default function SubirExcel() {
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
+  const [cantidadProcesada, setCantidadProcesada] = useState(0);
+
+  const procesarExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
     setArchivo(file);
-    setAnalizando(true);
-    setMensaje(null); // Limpiar mensajes previos
-
-    const reader = new FileReader();
-    reader.onload = (evento) => {
-      const data = new Uint8Array(evento.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      
-      // Leemos la hoja "BDatos" que es la primera (índice 0)
-      const primeraHoja = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[primeraHoja];
-      
-      // Convertimos el Excel a JSON
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-      setDatosPreview(jsonData);
-      setAnalizando(false);
-    };
-    reader.readAsArrayBuffer(file);
+    setMensaje({ tipo: '', texto: '' });
   };
 
-  // 2. Enviar los datos a Supabase
-  const guardarEnBaseDeDatos = async () => {
-    if (datosPreview.length === 0) return;
-    
-    setSubiendo(true);
-    setMensaje(null);
+  const subirDatos = async () => {
+    if (!archivo) return;
+    setCargando(true);
+    setMensaje({ tipo: '', texto: '' });
 
-    try {
-      // 1. Extraemos y formateamos todos los registros del Excel
-      const registrosBrutos = datosPreview
-        .filter(fila => fila['Documento']) // Filtramos filas sin DNI
-        .map(fila => ({
-          dni: String(fila['Documento']).trim(),
-          nombres_completos: fila['Apellidos y Nombres'] || 'Sin Nombre',
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        // 1. Validar que exista la hoja correcta
+        if (!workbook.SheetNames.includes('BDatos')) {
+          setMensaje({ tipo: 'error', texto: 'El Excel debe contener una hoja llamada "BDatos".' });
+          setCargando(false);
+          return;
+        }
+
+        const worksheet = workbook.Sheets['BDatos'];
+        // Convertimos la hoja a JSON
+        const json = XLSX.utils.sheet_to_json(worksheet);
+
+        // 2. Mapeo Inteligente: Emparejamos las columnas rebeldes del Excel con la Base de Datos
+        const datosLimpios = json.map((fila: any) => ({
+          nombres: fila['Apellidos y Nombres'] || null,
+          dni: fila['Documento'] ? String(fila['Documento']) : null,
+          tipo_documento: fila['Documento \nIdentidad'] || fila['Documento Identidad'] || fila['Documento Identidad'] || null,
+          fecha_nacimiento: fila['Fecha Nacimiento'] ? String(fila['Fecha Nacimiento']) : null,
           genero: fila['Género'] || null,
+          distrito: fila['Distrito'] || null,
+          nacionalidad: fila['Nacionalidad '] || fila['Nacionalidad'] || null, // El Excel original tiene un espacio al final
+          empresa: fila['Empresa'] || null,
+          area: fila['Area'] || null,
           cargo: fila['Cargo'] || null,
-        }));
+          fecha_emo: fila['Fecha EMO'] ? String(fila['Fecha EMO']) : null,
+          fecha_ingreso: fila['Fecha de Ingreso'] ? String(fila['Fecha de Ingreso']) : null,
+          fecha_cese: fila['Fecha de cese'] ? String(fila['Fecha de cese']) : null
+        })).filter((fila: any) => fila.dni && fila.nombres); // Ignoramos filas totalmente vacías
 
-      // 2. MAGIA: Limpiamos duplicados (si hay 2 DNIs iguales, se queda con el último)
-      const mapaUnicos = new Map();
-      registrosBrutos.forEach(registro => {
-        mapaUnicos.set(registro.dni, registro);
-      });
-      
-      const registrosListos = Array.from(mapaUnicos.values());
+        setCantidadProcesada(datosLimpios.length);
 
-      // 3. Enviamos los datos limpios a Supabase
-      const { error } = await supabase
-        .from('trabajadores')
-        .upsert(registrosListos, { onConflict: 'dni' });
+        // 3. AQUÍ VA LA INSERCIÓN A SUPABASE (Ejemplo comentado para cuando lo actives)
+        /*
+        const { error } = await supabase
+          .from('trabajadores')
+          .upsert(datosLimpios, { onConflict: 'dni' }); // upsert actualiza si el DNI ya existe
+        
+        if (error) throw error;
+        */
 
-      if (error) throw new Error(error.message);
+        setMensaje({ 
+          tipo: 'exito', 
+          texto: `¡Éxito! Se detectaron y prepararon ${datosLimpios.length} trabajadores desde la hoja BDatos.` 
+        });
 
-      // Si todo sale bien
-      setMensaje({ 
-        texto: `¡Éxito! Se guardaron ${registrosListos.length} trabajadores limpios. (Se limpiaron ${registrosBrutos.length - registrosListos.length} duplicados en el Excel).`, 
-        tipo: 'exito' 
-      });
-      
-      setArchivo(null); // Limpiamos la pantalla
-      setDatosPreview([]);
-
-    } catch (error: any) {
-      setMensaje({ texto: `Hubo un error al guardar: ${error.message}`, tipo: 'error' });
-    } finally {
-      setSubiendo(false);
-    }
+      } catch (error) {
+        console.error(error);
+        setMensaje({ tipo: 'error', texto: 'Hubo un problema al leer el archivo. Revisa que el formato sea correcto.' });
+      } finally {
+        setCargando(false);
+      }
+    };
+    reader.readAsArrayBuffer(archivo);
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Cargar Plantilla de Personal</h1>
-        <p className="text-slate-500 mt-1">Sube el archivo Excel estandarizado con los datos de tu empresa.</p>
+    <div className="max-w-3xl mx-auto">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-slate-800">Cargar Plantilla Maestra</h2>
+        <p className="text-slate-500 mt-1">Sube el archivo Excel oficial para actualizar el Directorio SSOMA.</p>
       </div>
 
-      {/* Mensajes de Éxito o Error */}
-      {mensaje && (
-        <div className={`p-4 rounded-lg border font-medium ${
-          mensaje.tipo === 'exito' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'
-        }`}>
-          {mensaje.texto}
-        </div>
-      )}
-
-      {/* Zona de Subida (Se oculta si ya se subió con éxito y no hay archivo nuevo) */}
-      {!archivo && (
-        <div className="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-10 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors">
-          <div className="p-4 bg-blue-50 text-blue-600 rounded-full mb-4">
-            <UploadCloud className="w-10 h-10" />
-          </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-2">
-            Arrastra tu archivo aquí o haz clic para buscar
-          </h3>
-          <p className="text-slate-500 text-sm mb-6 max-w-sm">
-            Solo se permiten archivos en formato .xlsx o .xls con la estructura oficial de TECSUR.
-          </p>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-8">
           
-          <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm">
-            Seleccionar Excel
+          {/* Zona de Arrastrar y Soltar */}
+          <div className="border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors flex flex-col items-center justify-center p-12 text-center relative">
             <input 
               type="file" 
-              className="hidden" 
-              accept=".xlsx, .xls" 
-              onChange={manejarArchivo}
+              accept=".xlsx, .xls"
+              onChange={procesarExcel}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
-          </label>
-        </div>
-      )}
-
-      {/* Resumen del Análisis y Botón de Guardado */}
-      {archivo && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileSpreadsheet className="w-6 h-6 text-green-600" />
-              <div>
-                <p className="font-semibold text-slate-800 text-sm">{archivo.name}</p>
-                <p className="text-xs text-slate-500">
-                  {analizando ? 'Analizando documento...' : `${datosPreview.length} registros detectados`}
-                </p>
-              </div>
+            <div className="bg-blue-100 p-4 rounded-full mb-4 text-blue-600">
+              <UploadCloud className="w-8 h-8" />
             </div>
-            {!analizando && !subiendo && (
-              <span className="flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
-                <CheckCircle2 className="w-4 h-4" /> Listo para guardar
-              </span>
-            )}
+            <h3 className="text-lg font-bold text-slate-700 mb-1">
+              {archivo ? archivo.name : 'Haz clic o arrastra tu archivo Excel aquí'}
+            </h3>
+            <p className="text-sm text-slate-500">
+              {archivo ? 'Archivo seleccionado correctamente.' : 'Solo se admiten formatos .XLSX o .XLS'}
+            </p>
           </div>
-          
-          <div className="p-4 bg-white flex justify-end gap-3">
-            <button 
-              onClick={() => setArchivo(null)}
-              className="px-6 py-2 rounded-lg font-medium text-sm text-slate-600 hover:bg-slate-100 transition-colors"
-              disabled={subiendo}
-            >
-              Cancelar
-            </button>
-            <button 
-              onClick={guardarEnBaseDeDatos}
-              disabled={subiendo || analizando}
-              className="bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white px-6 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
-            >
-              {subiendo ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Guardando...
-                </>
-              ) : (
-                'Guardar en Base de Datos'
-              )}
-            </button>
-          </div>
-        </div>
-      )}
 
+          {/* Botón de Acción */}
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={subirDatos}
+              disabled={!archivo || cargando}
+              className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+            >
+              {cargando ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileSpreadsheet className="w-5 h-5" />}
+              {cargando ? 'Procesando...' : 'Subir y Procesar'}
+            </button>
+          </div>
+
+          {/* Mensajes de Alerta */}
+          {mensaje.texto && (
+            <div className={`mt-6 p-4 rounded-xl flex items-center gap-3 ${
+              mensaje.tipo === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'
+            }`}>
+              {mensaje.tipo === 'error' ? <AlertCircle className="w-6 h-6 flex-shrink-0" /> : <CheckCircle className="w-6 h-6 flex-shrink-0" />}
+              <span className="font-medium">{mensaje.texto}</span>
+            </div>
+          )}
+
+        </div>
+      </div>
     </div>
   );
 }
