@@ -28,23 +28,20 @@ export default function SubirExcel() {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
-        
-        // 1. Validar que exista la hoja correcta
-        if (!workbook.SheetNames.includes('BDatos')) {
-          setMensaje({ tipo: 'error', texto: 'El Excel debe contener una hoja llamada "BDatos".' });
-          setCargando(false);
-          return;
+
+        // ==========================================
+        // 1. PROCESAR HOJA PRINCIPAL (BDatos)
+        // ==========================================
+        const worksheet = workbook.Sheets['BDatos'];
+        if (!worksheet) {
+          throw new Error('El Excel no tiene una hoja llamada "BDatos"');
         }
 
-        const worksheet = workbook.Sheets['BDatos'];
-        // Convertimos la hoja a JSON
         const json = XLSX.utils.sheet_to_json(worksheet);
 
-        // NUEVA FUNCIÓN: Traductor de fechas de Excel (DD/MM/YYYY) a Base de Datos (YYYY-MM-DD)
         const formatearFecha = (fecha: any) => {
           if (!fecha) return null;
           const strFecha = String(fecha).trim();
-          
           if (strFecha.includes('/')) {
             const partes = strFecha.split('/');
             if (partes.length === 3) {
@@ -55,7 +52,6 @@ export default function SubirExcel() {
           return strFecha; 
         };
 
-        // 2. Mapeo Inteligente (Aquí SÍ se usa datosLimpios)
         const datosLimpios = json.map((fila: any) => ({
           nombres: fila['Apellidos y Nombres'] || null,
           dni: fila['Documento'] ? String(fila['Documento']) : null,
@@ -72,7 +68,6 @@ export default function SubirExcel() {
           fecha_cese: formatearFecha(fila['Fecha de cese'])
         })).filter((fila: any) => fila.dni && fila.nombres); 
 
-        // Filtro Anti-Duplicados (Aquí convertimos datosLimpios en datosSinDuplicados)
         const datosSinDuplicados = Object.values(
           datosLimpios.reduce((acumulador: any, fila: any) => {
             acumulador[fila.dni] = fila; 
@@ -80,24 +75,70 @@ export default function SubirExcel() {
           }, {})
         );
 
-        setCantidadProcesada(datosSinDuplicados.length);
-
-        // 3. Inserción (Aquí es el ÚNICO lugar donde enviamos datosSinDuplicados a Supabase)
-        const { error } = await supabase
+        // Subimos a la tabla trabajadores
+        const { error: errorTrabajadores } = await supabase
           .from('trabajadores')
           .upsert(datosSinDuplicados, { onConflict: 'dni' }); 
         
-        if (error) throw error;
-        
+        if (errorTrabajadores) throw errorTrabajadores;
+        setCantidadProcesada(datosSinDuplicados.length);
 
-        setMensaje({ 
-          tipo: 'exito', 
-          texto: `¡Éxito! Se detectaron y prepararon ${datosLimpios.length} trabajadores desde la hoja BDatos.` 
+        // ==========================================
+        // 2. PROCESAR TODAS LAS HOJAS DE CURSOS
+        // ==========================================
+        // Lista de todas las pestañas de cursos en tu Excel que queremos leer
+        const hojasDeCursos = [
+          'Inducción General', 
+          'Plan emergencia', 
+          'Riesgo eléctrico', 
+          'IZAJE', 
+          'IPERC', 
+          'CONFINADO'
+        ];
+        
+        let todasLasCapacitaciones: any[] = [];
+
+        // Recorremos cada pestaña de la lista
+        hojasDeCursos.forEach((nombreHoja) => {
+          const hojaActual = workbook.Sheets[nombreHoja];
+          
+          if (hojaActual) {
+            const jsonCurso = XLSX.utils.sheet_to_json(hojaActual);
+            
+            const capacitacionesLimpias = jsonCurso.map((fila: any) => ({
+              dni: fila['Documento'] ? String(fila['Documento']) : (fila['DNI'] ? String(fila['DNI']) : null),
+              // Si la columna Nombre Curso está vacía, usamos el nombre de la pestaña por defecto
+              nombre_curso: fila['Nombre Curso'] || nombreHoja.toUpperCase(),
+              fecha_curso: formatearFecha(fila['Fecha curso']),
+              nota: fila['Nota'] ? parseFloat(fila['Nota']) : null,
+              estado: fila['Estado'] || null,
+              vigencia: fila['Vigencia'] || null
+            })).filter((fila: any) => fila.dni && fila.nombre_curso && fila.fecha_curso); 
+
+            todasLasCapacitaciones = [...todasLasCapacitaciones, ...capacitacionesLimpias];
+          }
         });
 
-      } catch (error) {
+        // Si encontramos capacitaciones en cualquiera de las hojas, las subimos de golpe
+        if (todasLasCapacitaciones.length > 0) {
+          const { error: errorCap } = await supabase
+            .from('capacitaciones')
+            .upsert(todasLasCapacitaciones, { onConflict: 'dni,nombre_curso,fecha_curso' });
+
+          if (errorCap) throw errorCap;
+        }
+
+        // ==========================================
+        // ÉXITO
+        // ==========================================
+        setMensaje({ 
+          tipo: 'exito', 
+          texto: `¡Éxito! Se procesaron ${datosSinDuplicados.length} trabajadores y ${todasLasCapacitaciones.length} registros de capacitaciones en total.` 
+        });
+
+      } catch (error: any) {
         console.error(error);
-        setMensaje({ tipo: 'error', texto: 'Hubo un problema al leer el archivo. Revisa que el formato sea correcto.' });
+        setMensaje({ tipo: 'error', texto: `Hubo un problema: ${error.message || 'Error al procesar el archivo'}` });
       } finally {
         setCargando(false);
       }

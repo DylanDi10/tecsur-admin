@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, LayoutDashboard, FileSpreadsheet, Users, LogOut, Menu, X, Loader2, ShieldCheck, User } from 'lucide-react';
+import { Building2, LayoutDashboard, FileSpreadsheet, Users, LogOut, Menu, X, Loader2, ShieldCheck, User, GraduationCap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -122,6 +122,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="font-medium">Directorio SSOMA</span>
           </Link>
         </nav>
+        <Link href="/dashboard/capacitaciones" onClick={cerrarMenu} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${pathname === '/dashboard/capacitaciones' ? 'bg-slate-800/80 text-blue-400' : 'hover:bg-slate-800/50 hover:text-white'}`}>
+            <GraduationCap className="w-5 h-5" />
+            <span className="font-medium">Capacitaciones</span>
+          </Link>
 
         <div className="p-4 border-t border-slate-800 shrink-0">
           <button 
