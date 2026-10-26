@@ -1,197 +1,195 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Search, Users, Loader2, Edit3, Check, X } from 'lucide-react';
-import { supabase } from '../../../lib/supabase';
+import { useState, useEffect } from 'react';
+import { Search, Edit2, X, Save } from 'lucide-react';
+// import { supabase } from '@/lib/supabase' // Asegúrate de tener tu importación de Supabase aquí según como la hayas configurado
 
-export default function RegistrosPage() {
-  const [trabajadores, setTrabajadores] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(true);
+export default function DirectorioSSOMA() {
   const [busqueda, setBusqueda] = useState('');
+  const [trabajadores, setTrabajadores] = useState<any[]>([]);
+  
+  // Estados para la ventana emergente (Modal)
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [trabajadorEditando, setTrabajadorEditando] = useState<any>(null);
 
-  // Estados para controlar qué celda se está editando
-  const [celdaEditando, setCeldaEditando] = useState<{ id: string, campo: string } | null>(null);
-  const [valorTemporal, setValorTemporal] = useState('');
-  const [guardando, setGuardando] = useState(false);
-
+  // Simulación de carga inicial (Aquí va tu lógica de Supabase)
   useEffect(() => {
-    cargarTrabajadores();
+    // Ejemplo con los 4 campos actuales (luego agregaremos los demás)
+    setTrabajadores([
+      { id: 1, dni: '44045668', nombres: 'ALMERCO CASTILLO MARCO', cargo: 'TOPÓGRAFO', genero: 'MASCULINO' },
+      { id: 2, dni: '73137943', nombres: 'PAUCAR HINOSTROZA PEDRO', cargo: 'RESIDENTE CIVIL', genero: 'MASCULINO' },
+    ]);
   }, []);
 
-  const cargarTrabajadores = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('trabajadores')
-        .select('*')
-        .order('nombres_completos', { ascending: true });
-
-      if (error) throw error;
-      setTrabajadores(data || []);
-    } catch (error) {
-      console.error('Error cargando datos:', error);
-    } finally {
-      setCargando(false);
-    }
+  // Función para abrir el modal con los datos del trabajador seleccionado
+  const abrirModal = (trabajador: any) => {
+    setTrabajadorEditando({ ...trabajador }); // Hacemos una copia para no editar directamente hasta guardar
+    setModalAbierto(true);
   };
 
-  // Función para activar el modo edición al hacer doble clic
-  const iniciarEdicion = (dni: string, campo: string, valorActual: string) => {
-    setCeldaEditando({ id: dni, campo });
-    setValorTemporal(valorActual || '');
+  // Función para guardar los cambios
+  const guardarCambios = async () => {
+    // 1. Aquí iría tu código para actualizar en Supabase:
+    // await supabase.from('trabajadores').update(trabajadorEditando).eq('id', trabajadorEditando.id);
+
+    // 2. Actualizamos la tabla visualmente
+    setTrabajadores(trabajadores.map(t => 
+      t.id === trabajadorEditando.id ? trabajadorEditando : t
+    ));
+    
+    // 3. Cerramos el modal
+    setModalAbierto(false);
   };
 
-  // Función para guardar el cambio en Supabase
-  const guardarEdicion = async (dni: string) => {
-    if (!celdaEditando) return;
-    setGuardando(true);
-
-    try {
-      const { error } = await supabase
-        .from('trabajadores')
-        .update({ [celdaEditando.campo]: valorTemporal })
-        .eq('dni', dni);
-
-      if (error) throw error;
-
-      // Actualizamos la tabla en pantalla sin tener que recargar la página
-      setTrabajadores(prev => 
-        prev.map(t => t.dni === dni ? { ...t, [celdaEditando.campo]: valorTemporal } : t)
-      );
-      setCeldaEditando(null); // Cerramos el modo edición
-    } catch (error) {
-      console.error("Error al guardar la edición", error);
-      alert("Hubo un error al actualizar el dato.");
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const filtrados = trabajadores.filter(t => 
-    t.nombres_completos?.toLowerCase().includes(busqueda.toLowerCase()) || 
-    t.dni?.includes(busqueda)
+  // Filtrado de búsqueda
+  const trabajadoresFiltrados = trabajadores.filter(t => 
+    t.nombres.toLowerCase().includes(busqueda.toLowerCase()) || 
+    t.dni.includes(busqueda)
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      
+      {/* Cabecera y Buscador */}
+      <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Directorio SSOMA</h1>
-          <p className="text-slate-500 mt-1">Doble clic en cualquier celda para editar (Cargo o Género).</p>
+          <h2 className="text-xl font-bold text-slate-800">Personal Activo</h2>
+          <p className="text-sm text-slate-500 mt-1">Gestiona los datos de los contratistas</p>
         </div>
         
-        <div className="relative w-full sm:w-80">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-slate-400" />
-          </div>
-          <input
-            type="text"
-            className="block w-full pl-10 pr-3 py-2.5 bg-white border border-slate-300 text-slate-900 placeholder:text-slate-500 font-medium rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-sm shadow-sm transition-all"
-            placeholder="Buscar por DNI o Nombre..."
+        <div className="relative w-full md:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+          <input 
+            type="text" 
+            placeholder="Buscar por DNI o Nombre..." 
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {cargando ? (
-          <div className="p-12 flex justify-center items-center text-slate-500">
-            <Loader2 className="w-6 h-6 animate-spin mr-2 text-blue-600" /> Cargando registros desde la nube...
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold">
-                <tr>
-                  <th className="px-6 py-4">DNI</th>
-                  <th className="px-6 py-4">Nombres Completos</th>
-                  <th className="px-6 py-4">Cargo</th>
-                  <th className="px-6 py-4 text-center">Género</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtrados.length > 0 ? (
-                  filtrados.map((t) => (
-                    <tr key={t.dni} className="hover:bg-slate-50 transition-colors group">
-                      <td className="px-6 py-4 font-medium text-slate-900">{t.dni}</td>
-                      <td className="px-6 py-4 font-medium text-blue-700">{t.nombres_completos}</td>
-                      
-                      {/* Celda Editable: Cargo */}
-                      <td 
-                        className="px-6 py-4 cursor-pointer relative"
-                        onDoubleClick={() => iniciarEdicion(t.dni, 'cargo', t.cargo)}
-                        title="Doble clic para editar"
-                      >
-                        {celdaEditando?.id === t.dni && celdaEditando?.campo === 'cargo' ? (
-                          <div className="flex items-center gap-1">
-                            <input 
-                              type="text" 
-                              autoFocus
-                              className="border border-blue-500 rounded px-2 py-1 outline-none text-slate-800 text-xs w-full"
-                              value={valorTemporal}
-                              onChange={(e) => setValorTemporal(e.target.value)}
-                              onKeyDown={(e) => e.key === 'Enter' && guardarEdicion(t.dni)}
-                            />
-                            <button onClick={() => guardarEdicion(t.dni)} className="text-green-600 hover:text-green-700">
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => setCeldaEditando(null)} className="text-red-500 hover:text-red-600">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-semibold border border-slate-200">
-                              {t.cargo || 'No especificado'}
-                            </span>
-                            <Edit3 className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Celda Editable: Género */}
-                      <td 
-                        className="px-6 py-4 cursor-pointer text-center relative"
-                        onDoubleClick={() => iniciarEdicion(t.dni, 'genero', t.genero)}
-                        title="Doble clic para editar"
-                      >
-                        {celdaEditando?.id === t.dni && celdaEditando?.campo === 'genero' ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <select 
-                              autoFocus
-                              className="border border-blue-500 rounded px-2 py-1 outline-none text-slate-800 text-xs"
-                              value={valorTemporal}
-                              onChange={(e) => setValorTemporal(e.target.value)}
-                              onKeyDown={(e) => e.key === 'Enter' && guardarEdicion(t.dni)}
-                            >
-                              <option value="MASCULINO">MASCULINO</option>
-                              <option value="FEMENINO">FEMENINO</option>
-                              <option value="">-</option>
-                            </select>
-                            <button onClick={() => guardarEdicion(t.dni)} className="text-green-600">
-                              <Check className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span>{t.genero || '-'}</span>
-                        )}
-                      </td>
-
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-16 text-center text-slate-500">
-                      <Users className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-                      <p className="text-lg font-medium text-slate-600">No se encontraron trabajadores.</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* Contenedor responsivo para la tabla */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
+              <th className="py-4 px-6 font-semibold">DNI</th>
+              <th className="py-4 px-6 font-semibold">Nombres Completos</th>
+              <th className="py-4 px-6 font-semibold">Cargo</th>
+              <th className="py-4 px-6 font-semibold">Género</th>
+              <th className="py-4 px-6 font-semibold text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trabajadoresFiltrados.map((t) => (
+              <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                <td className="py-4 px-6 font-medium text-slate-700">{t.dni}</td>
+                <td className="py-4 px-6 text-slate-600">{t.nombres}</td>
+                <td className="py-4 px-6 text-slate-600">
+                  <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+                    {t.cargo}
+                  </span>
+                </td>
+                <td className="py-4 px-6 text-slate-600">{t.genero}</td>
+                <td className="py-4 px-6 text-center">
+                  <button 
+                    onClick={() => abrirModal(t)}
+                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors inline-flex items-center gap-2"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    <span className="text-sm font-medium hidden md:inline">Editar</span>
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+
+      {/* VENTANA EMERGENTE (MODAL) DE EDICIÓN */}
+      {modalAbierto && trabajadorEditando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+            
+            {/* Cabecera del Modal */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Editar Trabajador</h3>
+              <button 
+                onClick={() => setModalAbierto(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Formulario */}
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">DNI</label>
+                  <input 
+                    type="text" 
+                    value={trabajadorEditando.dni}
+                    onChange={(e) => setTrabajadorEditando({...trabajadorEditando, dni: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">Género</label>
+                  <select 
+                    value={trabajadorEditando.genero}
+                    onChange={(e) => setTrabajadorEditando({...trabajadorEditando, genero: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                  >
+                    <option value="MASCULINO">MASCULINO</option>
+                    <option value="FEMENINO">FEMENINO</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">Nombres Completos</label>
+                <input 
+                  type="text" 
+                  value={trabajadorEditando.nombres}
+                  onChange={(e) => setTrabajadorEditando({...trabajadorEditando, nombres: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">Cargo</label>
+                <input 
+                  type="text" 
+                  value={trabajadorEditando.cargo}
+                  onChange={(e) => setTrabajadorEditando({...trabajadorEditando, cargo: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Botones de acción */}
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button 
+                onClick={() => setModalAbierto(false)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={guardarCambios}
+                className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                Guardar Cambios
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 }
