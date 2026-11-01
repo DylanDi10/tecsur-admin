@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Users, HardHat, AlertOctagon, CheckCircle2, Loader2, Activity, HeartPulse } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-
+import GeneradorGraficos from '@/components/dashboard/GeneradorGraficos';
 export default function DashboardInicio() {
   const [cargando, setCargando] = useState(true);
   const [perfilUsuario, setPerfilUsuario] = useState<any>(null);
@@ -224,17 +224,17 @@ export default function DashboardInicio() {
 
         <div className="relative w-32 h-32 shrink-0 flex items-center justify-center mx-auto md:mx-0">
           <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-            {/* Círculo de fondo (Gris suave) */}
+            {/* Círculo de fondo (Rojo - Representa a los No Aptos) */}
             <path
-              className="text-slate-100"
+              className="text-red-500"
               fill="none"
               strokeWidth="3.5"
               stroke="currentColor"
               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
             />
-            {/* Círculo de progreso (Verde) */}
+            {/* Círculo de progreso (Verde - Representa a los Aptos y cubre al rojo) */}
             <path
-              className={`${metricas.cursosVigentes < metricas.totalCapacitaciones ? 'text-amber-500' : 'text-green-500'} transition-all duration-1000 ease-out`}
+              className="text-green-500 transition-all duration-1000 ease-out"
               fill="none"
               strokeWidth="3.5"
               strokeLinecap="round"
@@ -251,7 +251,16 @@ export default function DashboardInicio() {
           </div>
         </div>
       </div>
-
+    {/* ================================================================= */}
+    {/* NUEVO: PANEL DE EXPLORACIÓN DE DATOS (SELF-SERVICE BI)            */}
+    {/* ================================================================= */}
+    <div className="mt-8">
+      <h3 className="text-xl font-bold text-slate-800 mb-4">Reportes Personalizados</h3>
+      <GeneradorGraficos />
+    </div>       
     </div> 
+    
+    
   );
+
 }

@@ -1,0 +1,1654 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/
+  dashboard/
+    capacitaciones/
+      page.tsx
+    registros/
+      page.tsx
+    subir-excel/
+      page.tsx
+    layout.tsx
+    page.tsx
+  favicon.ico
+  globals.css
+  layout.tsx
+  page.tsx
+lib/
+  supabase.ts
+public/
+  file.svg
+  globe.svg
+  next.svg
+  vercel.svg
+  window.svg
+.gitignore
+AGENTS.md
+eslint.config.mjs
+next.config.ts
+package.json
+README.md
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/dashboard/capacitaciones/page.tsx">
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Search, Loader2, GraduationCap, AlertTriangle } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+
+export default function HistorialCapacitaciones() {
+  const [busqueda, setBusqueda] = useState('');
+  const [capacitaciones, setCapacitaciones] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [perfilUsuario, setPerfilUsuario] = useState<any>(null);
+
+  useEffect(() => {
+    cargarDatosYPermisos();
+  }, []);
+
+  const cargarDatosYPermisos = async () => {
+    setCargando(true);
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data: perfil } = await supabase
+      .from('perfiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+      
+    setPerfilUsuario(perfil);
+
+    if (!perfil || !perfil.rol) {
+      setCapacitaciones([]);
+      setCargando(false);
+      return;
+    }
+
+    // AHORA pedimos explícitamente la 'fecha_emo' de la tabla trabajadores
+    let query = supabase
+      .from('capacitaciones')
+      .select(`
+        *,
+        trabajadores!inner(nombres, empresa, cargo, fecha_emo)
+      `)
+      .order('fecha_curso', { ascending: false });
+
+    if (perfil.rol === 'admin' || perfil.rol === 'visor') {
+      // Ve todo
+    } else if (perfil.rol === 'contratista' && perfil.empresa) {
+      query = query.eq('trabajadores.empresa', perfil.empresa);
+    } else {
+      query = query.eq('trabajadores.empresa', 'NINGUNA_EMPRESA');
+    }
+
+    const { data, error } = await query;
+      
+    if (!error && data) {
+      setCapacitaciones(data);
+    }
+    setCargando(false);
+  };
+
+  // Motor de cálculo de EMO
+  const evaluarEmo = (fechaStr: string) => {
+    if (!fechaStr) return { estado: 'Sin registro', esPeligro: true, clase: 'bg-slate-100 text-slate-600 border-slate-200' };
+    
+    const hoy = new Date();
+    const fechaVencimiento = new Date(fechaStr);
+    fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
+
+    if (fechaVencimiento < hoy) {
+      return { estado: 'Vencido', esPeligro: true, clase: 'bg-red-100 text-red-700 border-red-300 font-bold' };
+    }
+    return { estado: 'Vigente', esPeligro: false, clase: 'bg-green-50 text-green-700 border-green-200' };
+  };
+
+  const datosFiltrados = capacitaciones.filter(c => 
+    (c.trabajadores?.nombres?.toLowerCase() || '').includes(busqueda.toLowerCase()) || 
+    (c.dni || '').includes(busqueda) ||
+    (c.nombre_curso?.toLowerCase() || '').includes(busqueda.toLowerCase())
+  );
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[calc(100vh-8rem)]">
+      
+      <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <GraduationCap className="w-6 h-6 text-blue-600" />
+            Control Integral de Aptitud
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            {perfilUsuario?.rol === 'contratista' 
+              ? `Historial y vigencias - Empresa ${perfilUsuario.empresa}` 
+              : 'Registro general de cursos y estados médicos'}
+          </p>
+        </div>
+        
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
+          <input 
+            type="text" 
+            placeholder="Buscar por DNI, Nombre o Curso..." 
+            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="overflow-auto flex-1">
+        <table className="w-full text-left border-collapse whitespace-nowrap min-w-max">
+          <thead className="sticky top-0 z-20">
+            <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 text-sm shadow-sm">
+              <th className="py-3 px-4 font-bold border-r border-slate-200">Alerta</th>
+              <th className="py-3 px-4 font-bold border-r border-slate-200">DNI</th>
+              <th className="py-3 px-4 font-bold border-r border-slate-200">Trabajador</th>
+              <th className="py-3 px-4 font-bold border-r border-slate-200">Empresa</th>
+              <th className="py-3 px-4 font-bold border-r border-slate-200 text-indigo-700">Curso</th>
+              <th className="py-3 px-4 font-bold border-r border-slate-200 text-center">Vigencia Curso</th>
+              <th className="py-3 px-4 font-bold text-center">Estado EMO</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cargando ? (
+              <tr>
+                <td colSpan={7} className="py-12 text-center text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-500" />
+                  Evaluando aptitudes...
+                </td>
+              </tr>
+            ) : datosFiltrados.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-12 text-center text-slate-500">
+                  No hay registros disponibles.
+                </td>
+              </tr>
+            ) : (
+              datosFiltrados.map((c) => {
+                // SOLUCIÓN: Verificamos si Supabase mandó un array o un objeto único
+                const trabajador = Array.isArray(c.trabajadores) ? c.trabajadores[0] : c.trabajadores;
+                
+                const cursoVencido = c.vigencia?.toLowerCase() === 'vencido';
+                const emo = evaluarEmo(trabajador?.fecha_emo);
+                
+                const filaBloqueada = cursoVencido || emo.esPeligro;
+
+                return (
+                  <tr 
+                    key={c.id} 
+                    className={`border-b text-sm transition-all ${
+                      filaBloqueada 
+                      ? 'bg-red-50 border-red-100 hover:bg-red-100' 
+                      : 'border-slate-100 hover:bg-slate-50'
+                    }`}
+                  >
+                    <td className="py-3 px-4 border-r border-slate-100 text-center">
+                      {filaBloqueada ? (
+                        // Agregamos también un emoji nativo por si la librería lucide-react está fallando
+                        <div className="flex justify-center items-center gap-1 text-red-600 font-bold">
+                          <AlertTriangle className="w-5 h-5 text-red-600" /> 
+                        </div>
+                      ) : (
+                        <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-medium text-slate-800 border-r border-slate-100">{c.dni}</td>
+                    <td className="py-3 px-4 text-slate-700 font-medium border-r border-slate-100">{trabajador?.nombres || 'Desconocido'}</td>
+                    <td className="py-3 px-4 text-slate-600 border-r border-slate-100 font-semibold">{trabajador?.empresa || '-'}</td>
+                    <td className="py-3 px-4 text-indigo-700 font-bold border-r border-slate-100">{c.nombre_curso}</td>
+                    
+                    <td className="py-3 px-4 text-center border-r border-slate-100">
+                      <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${cursoVencido ? 'bg-red-100 text-red-700 border-red-300' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                        {c.vigencia || 'Sin dato'}
+                      </span>
+                    </td>
+                    
+                    <td className="py-3 px-4 text-center">
+                      <span className={`px-2.5 py-1 rounded-md text-xs border ${emo.clase}`}>
+                        {emo.estado}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/globals.css">
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+</file>
+
+<file path="app/layout.tsx">
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">{children}</body>
+    </html>
+  );
+}
+</file>
+
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+</file>
+
+<file path="AGENTS.md">
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+</file>
+
+<file path="eslint.config.mjs">
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+]);
+
+export default eslintConfig;
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+  experimental: {
+    agentFeedback: true,
+  },
+  cacheComponents: true,
+  partialPrefetching: true,
+  turbopack: {
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
+  },
+};
+
+export default nextConfig;
+</file>
+
+<file path="README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path="lib/supabase.ts">
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+</file>
+
+<file path="package.json">
+{
+  "name": "tecsur-admin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "lucide-react": "^1.61.0",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="app/dashboard/page.tsx">
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Users, HardHat, AlertOctagon, CheckCircle2, Loader2, Activity, HeartPulse } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+
+export default function DashboardInicio() {
+  const [cargando, setCargando] = useState(true);
+  const [perfilUsuario, setPerfilUsuario] = useState<any>(null);
+  
+  const [metricas, setMetricas] = useState({
+    totalTrabajadores: 0,
+    totalCapacitaciones: 0,
+    cursosVigentes: 0,
+    cursosVencidos: 0,
+    emosVencidos: 0, // NUEVO INDICADOR
+  });
+
+  useEffect(() => {
+    cargarEstadisticas();
+  }, []);
+
+  const cargarEstadisticas = async () => {
+    setCargando(true);
+    
+    // 1. Identificamos al usuario
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data: perfil } = await supabase
+      .from('perfiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+      
+    setPerfilUsuario(perfil);
+
+    if (!perfil || !perfil.rol) {
+      setCargando(false);
+      return;
+    }
+
+    // 2. Preparamos las consultas
+    // AHORA traemos la 'fecha_emo' para poder hacer el cálculo matemático
+    let queryTrabajadores = supabase.from('trabajadores').select('empresa, fecha_emo');
+    let queryCapacitaciones = supabase.from('capacitaciones').select('vigencia, estado, trabajadores!inner(empresa)');
+
+    if (perfil.rol === 'contratista' && perfil.empresa) {
+      queryTrabajadores = queryTrabajadores.eq('empresa', perfil.empresa);
+      queryCapacitaciones = queryCapacitaciones.eq('trabajadores.empresa', perfil.empresa);
+    } else if (perfil.rol !== 'admin' && perfil.rol !== 'visor') {
+      queryTrabajadores = queryTrabajadores.eq('empresa', 'NINGUNA');
+      queryCapacitaciones = queryCapacitaciones.eq('trabajadores.empresa', 'NINGUNA');
+    }
+
+    const [resTrabajadores, resCapacitaciones] = await Promise.all([
+      queryTrabajadores,
+      queryCapacitaciones
+    ]);
+
+    // 3. Procesamos los datos de Cursos
+    const listaTrabajadores = resTrabajadores.data || [];
+    const listaCursos = resCapacitaciones.data || [];
+    
+    const totalTrab = listaTrabajadores.length;
+    const totalCap = listaCursos.length;
+    const vigentes = listaCursos.filter(c => c.vigencia?.toLowerCase() === 'vigente').length;
+    const vencidos = listaCursos.filter(c => c.vigencia?.toLowerCase() === 'vencido').length;
+
+    // 4. CÁLCULO INTELIGENTE DE EMOs
+    let conteoEmosVencidos = 0;
+    const hoy = new Date();
+
+    listaTrabajadores.forEach(trabajador => {
+      if (trabajador.fecha_emo) {
+        // Convertimos la fecha de la base de datos a un formato real
+        const fechaEmo = new Date(trabajador.fecha_emo);
+        // Le sumamos exactamente 1 año para obtener el vencimiento
+        const fechaVencimiento = new Date(fechaEmo);
+        fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
+
+        // Si la fecha de vencimiento es menor a la fecha de hoy, está vencido
+        if (fechaVencimiento < hoy) {
+          conteoEmosVencidos++;
+        }
+      }
+    });
+
+    setMetricas({
+      totalTrabajadores: totalTrab,
+      totalCapacitaciones: totalCap,
+      cursosVigentes: vigentes,
+      cursosVencidos: vencidos,
+      emosVencidos: conteoEmosVencidos
+    });
+
+    setCargando(false);
+  };
+
+  if (cargando) {
+    return (
+      <div className="h-[calc(100vh-8rem)] w-full flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium">Calculando métricas y vigencias médicas...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <h1 className="text-2xl font-bold text-slate-800">
+          Bienvenido, {perfilUsuario?.email?.split('@')[0]}
+        </h1>
+        <p className="text-slate-500 mt-1">
+          {perfilUsuario?.rol === 'admin' 
+            ? 'Aquí tienes el resumen general de todas las operaciones y contratas.' 
+            : `Resumen operativo de la empresa ${perfilUsuario?.empresa || 'No asignada'}.`}
+        </p>
+      </div>
+
+      {/* Cambiamos el grid para acomodar la nueva tarjeta estética */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden group">
+          <div className="absolute right-0 top-0 w-24 h-24 bg-blue-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="p-3 bg-blue-100 text-blue-600 rounded-xl">
+              <Users className="w-6 h-6" />
+            </div>
+            <h3 className="font-semibold text-slate-600">Personal Activo</h3>
+          </div>
+          <div className="mt-auto">
+            <p className="text-4xl font-bold text-slate-800">{metricas.totalTrabajadores}</p>
+            <p className="text-sm text-slate-500 mt-1">Registrados en el Directorio SSOMA</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden group">
+          <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl">
+              <HardHat className="w-6 h-6" />
+            </div>
+            <h3 className="font-semibold text-slate-600">Cursos Dictados</h3>
+          </div>
+          <div className="mt-auto">
+            <p className="text-4xl font-bold text-slate-800">{metricas.totalCapacitaciones}</p>
+            <p className="text-sm text-slate-500 mt-1">Historial total de asistencias</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden group">
+          <div className="absolute right-0 top-0 w-24 h-24 bg-green-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="p-3 bg-green-100 text-green-600 rounded-xl">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <h3 className="font-semibold text-slate-600">Cursos Vigentes</h3>
+          </div>
+          <div className="mt-auto">
+            <p className="text-4xl font-bold text-slate-800">{metricas.cursosVigentes}</p>
+            <p className="text-sm text-slate-500 mt-1">Personal apto por cursos</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-red-200 flex flex-col relative overflow-hidden group">
+          <div className="absolute right-0 top-0 w-24 h-24 bg-red-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="p-3 bg-red-100 text-red-600 rounded-xl animate-pulse">
+              <AlertOctagon className="w-6 h-6" />
+            </div>
+            <h3 className="font-semibold text-red-700">Cursos Vencidos</h3>
+          </div>
+          <div className="mt-auto">
+            <p className="text-4xl font-bold text-red-600">{metricas.cursosVencidos}</p>
+            <p className="text-sm text-red-500 mt-1 font-medium">Requieren renovación urgente</p>
+          </div>
+        </div>
+
+        {/* NUEVA TARJETA: ALERTAS MÉDICAS (EMO) */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-orange-200 flex flex-col relative overflow-hidden group">
+          <div className="absolute right-0 top-0 w-24 h-24 bg-orange-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="p-3 bg-orange-100 text-orange-600 rounded-xl animate-pulse">
+              <HeartPulse className="w-6 h-6" />
+            </div>
+            <h3 className="font-semibold text-orange-700">EMOs Vencidos</h3>
+          </div>
+          <div className="mt-auto">
+            <p className="text-4xl font-bold text-orange-600">{metricas.emosVencidos}</p>
+            <p className="text-sm text-orange-500 mt-1 font-medium">Exámenes Médicos caducados</p>
+          </div>
+        </div>
+
+      </div> {/* <--- AQUÍ TERMINAN TUS TARJETAS */}
+
+      {/* ================================================================= */}
+      {/* GRÁFICO DE ESTADO GENERAL (Pégalo justo aquí, después de las tarjetas) */}
+      {/* ================================================================= */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-8">
+        <div className="flex-1">
+          <h3 className="text-lg font-bold text-slate-800 mb-2">Estado General del Personal</h3>
+          <p className="text-sm text-slate-500 mb-6">Proporción de cursos vigentes frente a vencidos de la empresa {perfilUsuario?.empresa || 'actual'}.</p>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="text-sm font-medium text-slate-700">Aptos (Vigentes)</span>
+              </div>
+              <span className="text-sm font-bold text-slate-900">{metricas.cursosVigentes}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <span className="text-sm font-medium text-slate-700">No Aptos (Vencidos)</span>
+              </div>
+              <span className="text-sm font-bold text-slate-900">{metricas.cursosVencidos}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative w-32 h-32 shrink-0 flex items-center justify-center mx-auto md:mx-0">
+          <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+            {/* Círculo de fondo (Rojo - Representa a los No Aptos) */}
+            <path
+              className="text-red-500"
+              fill="none"
+              strokeWidth="3.5"
+              stroke="currentColor"
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+            />
+            {/* Círculo de progreso (Verde - Representa a los Aptos y cubre al rojo) */}
+            <path
+              className="text-green-500 transition-all duration-1000 ease-out"
+              fill="none"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeDasharray={`${metricas.totalCapacitaciones > 0 ? (metricas.cursosVigentes / metricas.totalCapacitaciones) * 100 : 0}, 100`}
+              stroke="currentColor"
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-slate-800">
+              {metricas.totalCapacitaciones > 0 ? Math.round((metricas.cursosVigentes / metricas.totalCapacitaciones) * 100) : 0}%
+            </span>
+            <span className="text-xs text-slate-500 font-medium">Aptitud</span>
+          </div>
+        </div>
+      </div>
+
+    </div> 
+  );
+}
+</file>
+
+<file path="app/dashboard/registros/page.tsx">
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Search, Edit2, X, Save, Loader2, Columns, ShieldAlert } from 'lucide-react';
+import { supabase } from '@/lib/supabase'; 
+
+export default function DirectorioSSOMA() {
+  const [busqueda, setBusqueda] = useState('');
+  const [trabajadores, setTrabajadores] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(true);
+  
+  // Perfil del usuario actual
+  const [perfilUsuario, setPerfilUsuario] = useState<any>(null);
+
+  // Estados para el Modal de Edición
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [trabajadorEditando, setTrabajadorEditando] = useState<any>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  // Estado para controlar qué columnas se ven
+  const [menuColumnasAbierto, setMenuColumnasAbierto] = useState(false);
+  const [columnasVisibles, setColumnasVisibles] = useState({
+    dni: true,
+    nombres: true,
+    empresa: true,
+    cargo: true,
+    area: true,
+    fecha_nacimiento: false, 
+    genero: false,
+    nacionalidad: false,
+    distrito: false,
+    fecha_emo: true,
+    fecha_ingreso: true,
+    fecha_cese: false
+  });
+
+  const toggleColumna = (columna: keyof typeof columnasVisibles) => {
+    setColumnasVisibles(prev => ({ ...prev, [columna]: !prev[columna] }));
+  };
+
+  useEffect(() => {
+    cargarDatosYPermisos();
+  }, []);
+
+  const cargarDatosYPermisos = async () => {
+    setCargando(true);
+    
+    // 1. Identificamos quién está viendo la página
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setCargando(false);
+      return;
+    }
+
+    const { data: perfil } = await supabase
+      .from('perfiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+      
+    setPerfilUsuario(perfil);
+
+    // 2. SEGURIDAD EXTREMA: Si el usuario no tiene perfil asignado, bloqueamos todo.
+    if (!perfil || !perfil.rol) {
+      setTrabajadores([]);
+      setCargando(false);
+      return;
+    }
+
+    // 3. Construimos la consulta base
+    let query = supabase.from('trabajadores').select('*').order('nombres', { ascending: true });
+
+    // 4. REGLAS DE ORO ESTRICTAS
+    if (perfil.rol === 'admin') {
+      // Si es ADMIN: no ponemos filtros, ve todo.
+    } else if (perfil.rol === 'contratista' && perfil.empresa) {
+      // Si es CONTRATISTA: filtramos estrictamente por el nombre exacto de su empresa.
+      query = query.eq('empresa', perfil.empresa);
+    } else {
+      // Si es Visor o cualquier otro rol sin empresa definida, forzamos que no vea nada.
+      query = query.eq('empresa', 'NINGUNA_EMPRESA_SECRETA');
+    }
+
+    // 5. Ejecutamos la búsqueda segura
+    const { data, error } = await query;
+      
+    if (!error && data) {
+      setTrabajadores(data);
+    }
+    setCargando(false);
+  };
+
+  const abrirModal = (trabajador: any) => {
+    // Protección extra: Si un visor de alguna forma burla la interfaz, el sistema lo bloquea aquí
+    if (perfilUsuario?.rol === 'visor') {
+      alert('Tu perfil es de solo lectura. No tienes permisos para editar.');
+      return;
+    }
+    setTrabajadorEditando({ ...trabajador });
+    setModalAbierto(true);
+  };
+
+  const guardarCambios = async () => {
+    setGuardando(true);
+    const { error } = await supabase
+      .from('trabajadores')
+      .update(trabajadorEditando)
+      .eq('dni', trabajadorEditando.dni);
+
+    if (!error) {
+      setTrabajadores(trabajadores.map(t => 
+        t.dni === trabajadorEditando.dni ? trabajadorEditando : t
+      ));
+      setModalAbierto(false);
+    } else {
+      alert('Error al guardar: ' + error.message);
+    }
+    setGuardando(false);
+  };
+
+  const trabajadoresFiltrados = trabajadores.filter(t => 
+    (t.nombres?.toLowerCase() || '').includes(busqueda.toLowerCase()) || 
+    (t.dni || '').includes(busqueda)
+  );
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[calc(100vh-8rem)]">
+      
+      <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Personal Activo</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            {perfilUsuario?.rol === 'contratista' 
+              ? `Viendo únicamente personal de ${perfilUsuario.empresa}` 
+              : 'Directorio unificado del personal activo'}
+          </p>
+        </div>
+        
+        <div className="flex flex-col md:flex-row items-center gap-3">
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
+            <input 
+              type="text" 
+              placeholder="Buscar por DNI o Nombre..." 
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+
+          <div className="relative w-full md:w-auto">
+            <button 
+              onClick={() => setMenuColumnasAbierto(!menuColumnasAbierto)}
+              className="w-full md:w-auto px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm flex items-center justify-center gap-2 transition-colors"
+            >
+              <Columns className="w-4 h-4 text-slate-500" />
+              Columnas
+            </button>
+
+            {menuColumnasAbierto && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Mostrar / Ocultar</div>
+                <div className="max-h-60 overflow-y-auto space-y-1">
+                  {Object.keys(columnasVisibles).map((colKey) => (
+                    <label key={colKey} className="flex items-center gap-3 px-2 py-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={columnasVisibles[colKey as keyof typeof columnasVisibles]}
+                        onChange={() => toggleColumna(colKey as keyof typeof columnasVisibles)}
+                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-slate-700 capitalize">
+                        {colKey.replace('_', ' ')}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-auto flex-1 relative">
+        <table className="w-full text-left border-collapse whitespace-nowrap min-w-max">
+          <thead className="sticky top-0 z-20">
+            <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 text-sm shadow-sm">
+              {columnasVisibles.dni && <th className="py-3 px-4 font-bold border-r border-slate-200">DNI</th>}
+              {columnasVisibles.nombres && <th className="py-3 px-4 font-bold border-r border-slate-200">Nombres Completos</th>}
+              {columnasVisibles.empresa && <th className="py-3 px-4 font-bold border-r border-slate-200">Empresa</th>}
+              {columnasVisibles.cargo && <th className="py-3 px-4 font-bold border-r border-slate-200">Cargo</th>}
+              {columnasVisibles.area && <th className="py-3 px-4 font-bold border-r border-slate-200">Área</th>}
+              {columnasVisibles.fecha_nacimiento && <th className="py-3 px-4 font-bold border-r border-slate-200">F. Nacimiento</th>}
+              {columnasVisibles.genero && <th className="py-3 px-4 font-bold border-r border-slate-200">Género</th>}
+              {columnasVisibles.nacionalidad && <th className="py-3 px-4 font-bold border-r border-slate-200">Nacionalidad</th>}
+              {columnasVisibles.distrito && <th className="py-3 px-4 font-bold border-r border-slate-200">Distrito</th>}
+              {columnasVisibles.fecha_emo && <th className="py-3 px-4 font-bold border-r border-slate-200 text-blue-700">F. EMO</th>}
+              {columnasVisibles.fecha_ingreso && <th className="py-3 px-4 font-bold border-r border-slate-200 text-green-700">F. Ingreso</th>}
+              {columnasVisibles.fecha_cese && <th className="py-3 px-4 font-bold border-r border-slate-200 text-red-700">F. Cese</th>}
+              
+              {/* Ocultamos la columna de Acciones si es Visor */}
+              {perfilUsuario?.rol !== 'visor' && (
+                <th className="py-3 px-4 font-bold text-center sticky right-0 bg-slate-100 shadow-[-4px_0_10px_rgba(0,0,0,0.1)] z-30">Acciones</th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {cargando ? (
+              <tr>
+                <td colSpan={13} className="py-12 text-center text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-500" />
+                  Cargando base de datos segura...
+                </td>
+              </tr>
+            ) : trabajadoresFiltrados.length === 0 ? (
+              <tr>
+                <td colSpan={13} className="py-12 text-center text-slate-500">
+                  No se encontraron registros {perfilUsuario?.rol === 'contratista' ? `para la empresa ${perfilUsuario?.empresa}` : ''}.
+                </td>
+              </tr>
+            ) : (
+              trabajadoresFiltrados.map((t) => (
+                <tr key={t.dni} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  {columnasVisibles.dni && <td className="py-3 px-4 font-medium text-slate-800 border-r border-slate-100">{t.dni}</td>}
+                  {columnasVisibles.nombres && <td className="py-3 px-4 text-slate-700 font-medium border-r border-slate-100">{t.nombres}</td>}
+                  {columnasVisibles.empresa && <td className="py-3 px-4 text-slate-600 border-r border-slate-100 font-semibold">{t.empresa || '-'}</td>}
+                  {columnasVisibles.cargo && <td className="py-3 px-4 border-r border-slate-100"><span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs font-bold border border-blue-100">{t.cargo || 'SIN CARGO'}</span></td>}
+                  {columnasVisibles.area && <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{t.area || '-'}</td>}
+                  {columnasVisibles.fecha_nacimiento && <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{t.fecha_nacimiento || '-'}</td>}
+                  {columnasVisibles.genero && <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{t.genero || '-'}</td>}
+                  {columnasVisibles.nacionalidad && <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{t.nacionalidad || '-'}</td>}
+                  {columnasVisibles.distrito && <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{t.distrito || '-'}</td>}
+                  {columnasVisibles.fecha_emo && <td className="py-3 px-4 text-slate-800 font-medium border-r border-slate-100">{t.fecha_emo || '-'}</td>}
+                  {columnasVisibles.fecha_ingreso && <td className="py-3 px-4 text-slate-800 font-medium border-r border-slate-100">{t.fecha_ingreso || '-'}</td>}
+                  {columnasVisibles.fecha_cese && <td className="py-3 px-4 text-slate-800 font-medium border-r border-slate-100">{t.fecha_cese || '-'}</td>}
+                  
+                  {/* Ocultamos el botón de editar si es visor */}
+                  {perfilUsuario?.rol !== 'visor' && (
+                    <td className="py-2 px-4 text-center sticky right-0 bg-white/95 backdrop-blur-sm shadow-[-4px_0_10px_rgba(0,0,0,0.05)] border-l border-slate-200">
+                      <button 
+                        onClick={() => abrirModal(t)}
+                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors inline-flex items-center"
+                        title="Editar"
+                      >
+                        <Edit2 className="w-5 h-5" />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODAL DE EDICIÓN SE MANTIENE IGUAL */}
+      {modalAbierto && trabajadorEditando && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
+         <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8 animate-in fade-in zoom-in duration-200">
+           <div className="flex items-center justify-between p-6 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
+             <h3 className="text-lg font-bold text-slate-800">Ficha del Trabajador</h3>
+             <button onClick={() => setModalAbierto(false)} className="text-slate-400 hover:text-slate-600">
+               <X className="w-5 h-5" />
+             </button>
+           </div>
+           
+           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-h-[60vh] overflow-y-auto">
+              <div className="md:col-span-2 text-sm font-bold text-blue-600 border-b pb-2 mb-2 mt-2">Datos Personales</div>
+              <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Documento</label><input type="text" value={trabajadorEditando.dni || ''} disabled className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed" /></div>
+              <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Nombres Completos</label><input type="text" value={trabajadorEditando.nombres || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, nombres: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+              <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Fecha de Nacimiento</label><input type="text" value={trabajadorEditando.fecha_nacimiento || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, fecha_nacimiento: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Nacionalidad / Distrito</label>
+                <div className="flex gap-2">
+                  <input type="text" value={trabajadorEditando.nacionalidad || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, nacionalidad: e.target.value})} className="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-slate-700" placeholder="Nacionalidad" />
+                  <input type="text" value={trabajadorEditando.distrito || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, distrito: e.target.value})} className="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-slate-700" placeholder="Distrito" />
+                </div>
+              </div>
+
+              <div className="md:col-span-2 text-sm font-bold text-blue-600 border-b pb-2 mb-2 mt-4">Datos Laborales</div>
+              <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Empresa Contratista</label><input type="text" value={trabajadorEditando.empresa || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, empresa: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+              <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Cargo</label><input type="text" value={trabajadorEditando.cargo || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, cargo: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+              <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Área de Trabajo</label><input type="text" value={trabajadorEditando.area || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, area: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Fechas (EMO / Ingreso)</label>
+                <div className="flex gap-2">
+                  <input type="text" value={trabajadorEditando.fecha_emo || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, fecha_emo: e.target.value})} className="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-slate-700 text-sm" placeholder="F. EMO" />
+                  <input type="text" value={trabajadorEditando.fecha_ingreso || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, fecha_ingreso: e.target.value})} className="w-1/2 px-3 py-2 border border-slate-200 rounded-lg text-slate-700 text-sm" placeholder="F. Ingreso" />
+                </div>
+              </div>
+              <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Fecha de Cese</label><input type="text" value={trabajadorEditando.fecha_cese || ''} onChange={(e) => setTrabajadorEditando({...trabajadorEditando, fecha_cese: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 sticky bottom-0 rounded-b-2xl">
+              <button onClick={() => setModalAbierto(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">Cerrar</button>
+              <button onClick={guardarCambios} disabled={guardando} className="px-6 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50">
+                {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {guardando ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+         </div>
+       </div>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="app/dashboard/subir-excel/page.tsx">
+'use client';
+
+import { useState } from 'react';
+import * as XLSX from 'xlsx';
+import { UploadCloud, FileSpreadsheet, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase'; // Asegúrate de descomentar esto cuando conectes Supabase real
+
+export default function SubirExcel() {
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
+  const [cantidadProcesada, setCantidadProcesada] = useState(0);
+
+  const procesarExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setArchivo(file);
+    setMensaje({ tipo: '', texto: '' });
+  };
+
+  const subirDatos = async () => {
+    if (!archivo) return;
+    setCargando(true);
+    setMensaje({ tipo: '', texto: '' });
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+
+        // ==========================================
+        // 1. PROCESAR HOJA PRINCIPAL (BDatos)
+        // ==========================================
+        const worksheet = workbook.Sheets['BDatos'];
+        if (!worksheet) {
+          throw new Error('El Excel no tiene una hoja llamada "BDatos"');
+        }
+
+        const json = XLSX.utils.sheet_to_json(worksheet);
+
+        const formatearFecha = (fecha: any) => {
+          if (!fecha) return null;
+          const strFecha = String(fecha).trim();
+          if (strFecha.includes('/')) {
+            const partes = strFecha.split('/');
+            if (partes.length === 3) {
+              const [dia, mes, anio] = partes;
+              return `${anio}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+            }
+          }
+          return strFecha; 
+        };
+
+        const datosLimpios = json.map((fila: any) => ({
+          nombres: fila['Apellidos y Nombres'] || null,
+          dni: fila['Documento'] ? String(fila['Documento']) : null,
+          tipo_documento: fila['Documento \nIdentidad'] || fila['Documento Identidad'] || null,
+          fecha_nacimiento: formatearFecha(fila['Fecha Nacimiento']),
+          genero: fila['Género'] || null,
+          distrito: fila['Distrito'] || null,
+          nacionalidad: fila['Nacionalidad '] || fila['Nacionalidad'] || null,
+          empresa: fila['Empresa'] || null,
+          area: fila['Area'] || null,
+          cargo: fila['Cargo'] || null,
+          fecha_emo: formatearFecha(fila['Fecha EMO']),
+          fecha_ingreso: formatearFecha(fila['Fecha de Ingreso']),
+          fecha_cese: formatearFecha(fila['Fecha de cese'])
+        })).filter((fila: any) => fila.dni && fila.nombres); 
+
+        const datosSinDuplicados = Object.values(
+          datosLimpios.reduce((acumulador: any, fila: any) => {
+            acumulador[fila.dni] = fila; 
+            return acumulador;
+          }, {})
+        );
+
+        // Subimos a la tabla trabajadores
+        const { error: errorTrabajadores } = await supabase
+          .from('trabajadores')
+          .upsert(datosSinDuplicados, { onConflict: 'dni' }); 
+        
+        if (errorTrabajadores) throw errorTrabajadores;
+        setCantidadProcesada(datosSinDuplicados.length);
+
+        // ==========================================
+        // 2. PROCESAR TODAS LAS HOJAS DE CURSOS
+        // ==========================================
+        // Lista de todas las pestañas de cursos en tu Excel que queremos leer
+        const hojasDeCursos = [
+          'Inducción General', 
+          'Plan emergencia', 
+          'Riesgo eléctrico', 
+          'IZAJE', 
+          'IPERC', 
+          'CONFINADO'
+        ];
+        
+        let todasLasCapacitaciones: any[] = [];
+
+        // Recorremos cada pestaña de la lista
+        hojasDeCursos.forEach((nombreHoja) => {
+          const hojaActual = workbook.Sheets[nombreHoja];
+          
+          if (hojaActual) {
+            const jsonCurso = XLSX.utils.sheet_to_json(hojaActual);
+            
+            const capacitacionesLimpias = jsonCurso.map((fila: any) => ({
+              dni: fila['Documento'] ? String(fila['Documento']) : (fila['DNI'] ? String(fila['DNI']) : null),
+              // Si la columna Nombre Curso está vacía, usamos el nombre de la pestaña por defecto
+              nombre_curso: fila['Nombre Curso'] || nombreHoja.toUpperCase(),
+              fecha_curso: formatearFecha(fila['Fecha curso']),
+              nota: fila['Nota'] ? parseFloat(fila['Nota']) : null,
+              estado: fila['Estado'] || null,
+              vigencia: fila['Vigencia'] || null
+            })).filter((fila: any) => fila.dni && fila.nombre_curso && fila.fecha_curso); 
+
+            todasLasCapacitaciones = [...todasLasCapacitaciones, ...capacitacionesLimpias];
+          }
+        });
+
+        // Si encontramos capacitaciones en cualquiera de las hojas, las subimos de golpe
+        if (todasLasCapacitaciones.length > 0) {
+          const { error: errorCap } = await supabase
+            .from('capacitaciones')
+            .upsert(todasLasCapacitaciones, { onConflict: 'dni,nombre_curso,fecha_curso' });
+
+          if (errorCap) throw errorCap;
+        }
+        // ==========================================
+        // 3. PROCESAR HOJA HHT (Estadísticas Mensuales)
+        // ==========================================
+        const hojaHHT = workbook.Sheets['HHT'];
+        
+        if (hojaHHT) {
+          const jsonHHT = XLSX.utils.sheet_to_json(hojaHHT);
+          
+          const datosHHTLimpios = jsonHHT.map((fila: any) => ({
+            empresa: fila['Empresa'] || null,
+            edi: fila['EDI'] || null,
+            fecha: formatearFecha(fila['Fecha']),
+            empleados: parseInt(fila['Empleados']) || 0,
+            obreros: parseInt(fila['Obreros']) || 0,
+            total_personal: parseInt(fila['Total']) || 0,
+            hht_mensual: parseFloat(fila['HHT Mensual']) || 0,
+            accidentes: parseInt(fila['Accidentes']) || 0,
+            dias_perdidos: parseInt(fila['Dias Perdidos']) || 0
+          })).filter((fila: any) => fila.empresa && fila.fecha); 
+
+          if (datosHHTLimpios.length > 0) {
+            const { error: errorHHT } = await supabase
+              .from('registro_hht')
+              .upsert(datosHHTLimpios, { onConflict: 'empresa,edi,fecha' });
+
+            if (errorHHT) throw errorHHT;
+          }
+        }
+        // ==========================================
+        // ÉXITO
+        // ==========================================
+        setMensaje({ 
+          tipo: 'exito', 
+          texto: `¡Éxito! Se procesaron ${datosSinDuplicados.length} trabajadores y ${todasLasCapacitaciones.length} registros de capacitaciones en total.` 
+        });
+
+      } catch (error: any) {
+        console.error(error);
+        setMensaje({ tipo: 'error', texto: `Hubo un problema: ${error.message || 'Error al procesar el archivo'}` });
+      } finally {
+        setCargando(false);
+      }
+    };
+    reader.readAsArrayBuffer(archivo);
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-slate-800">Cargar Plantilla Maestra</h2>
+        <p className="text-slate-500 mt-1">Sube el archivo Excel oficial para actualizar el Directorio SSOMA.</p>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-8">
+          
+          {/* Zona de Arrastrar y Soltar */}
+          <div className="border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors flex flex-col items-center justify-center p-12 text-center relative">
+            <input 
+              type="file" 
+              accept=".xlsx, .xls"
+              onChange={procesarExcel}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+            <div className="bg-blue-100 p-4 rounded-full mb-4 text-blue-600">
+              <UploadCloud className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-700 mb-1">
+              {archivo ? archivo.name : 'Haz clic o arrastra tu archivo Excel aquí'}
+            </h3>
+            <p className="text-sm text-slate-500">
+              {archivo ? 'Archivo seleccionado correctamente.' : 'Solo se admiten formatos .XLSX o .XLS'}
+            </p>
+          </div>
+
+          {/* Botón de Acción */}
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={subirDatos}
+              disabled={!archivo || cargando}
+              className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+            >
+              {cargando ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileSpreadsheet className="w-5 h-5" />}
+              {cargando ? 'Procesando...' : 'Subir y Procesar'}
+            </button>
+          </div>
+
+          {/* Mensajes de Alerta */}
+          {mensaje.texto && (
+            <div className={`mt-6 p-4 rounded-xl flex items-center gap-3 ${
+              mensaje.tipo === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'
+            }`}>
+              {mensaje.tipo === 'error' ? <AlertCircle className="w-6 h-6 flex-shrink-0" /> : <CheckCircle className="w-6 h-6 flex-shrink-0" />}
+              <span className="font-medium">{mensaje.texto}</span>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/dashboard/layout.tsx">
+'use client';
+
+import { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Building2, LayoutDashboard, FileSpreadsheet, Users, LogOut, Menu, X, Loader2, ShieldCheck, User, GraduationCap } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const [verificando, setVerificando] = useState(true);
+  
+  // NUEVO: Estado para guardar el perfil del usuario
+  const [perfil, setPerfil] = useState<any>(null);
+
+  useEffect(() => {
+    const verificarSesion = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        router.push('/'); 
+      } else {
+        // Si hay sesión, buscamos qué rol tiene este usuario en la tabla "perfiles"
+        const { data: datosPerfil } = await supabase
+          .from('perfiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+          
+        if (datosPerfil) {
+          setPerfil(datosPerfil);
+        }
+        
+        setVerificando(false); 
+      }
+    };
+    verificarSesion();
+  }, [router]);
+
+  const cerrarSesion = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
+  };
+
+  const cerrarMenu = () => setMenuAbierto(false);
+
+  if (verificando) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-900">
+        <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
+        <p className="text-slate-300 font-medium">Verificando credenciales y permisos...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
+      
+      {/* BARRA SUPERIOR PARA CELULAR */}
+      <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-[#0B1120] flex items-center justify-between px-4 z-50 shadow-md">
+        <div className="flex items-center">
+          <Building2 className="w-6 h-6 text-blue-500 mr-2" />
+          <span className="text-white font-bold tracking-wider text-lg">TECSUR</span>
+        </div>
+        <button onClick={() => setMenuAbierto(!menuAbierto)} className="text-white p-2">
+          {menuAbierto ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
+
+      {/* MENÚ LATERAL (Sidebar) */}
+      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#0B1120] text-slate-300 flex flex-col transition-transform duration-300 ease-in-out ${
+        menuAbierto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      }`}>
+        
+        <div className="hidden md:flex h-16 items-center px-6 border-b border-slate-800 shrink-0">
+          <Building2 className="w-6 h-6 text-blue-500 mr-3" />
+          <span className="text-white font-bold tracking-wider text-lg">TECSUR</span>
+        </div>
+
+        {/* NUEVO: Tarjeta de Usuario Logueado */}
+        <div className="px-4 py-6 border-b border-slate-800 bg-slate-900/50 mt-16 md:mt-0">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-blue-600/20 p-2 rounded-lg">
+              {perfil?.rol === 'admin' ? (
+                <ShieldCheck className="w-5 h-5 text-blue-400" />
+              ) : (
+                <User className="w-5 h-5 text-slate-400" />
+              )}
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-sm font-bold text-white truncate" title={perfil?.email}>
+                {perfil?.email?.split('@')[0]} {/* Muestra solo el nombre antes del @ */}
+              </p>
+              <p className="text-xs text-blue-400 font-semibold uppercase tracking-wider">
+                {perfil?.rol || 'Cargando...'}
+              </p>
+            </div>
+          </div>
+          <div className="text-xs text-slate-500 font-medium px-1">
+            Empresa: <span className="text-slate-300">{perfil?.empresa || 'No asignada'}</span>
+          </div>
+        </div>
+
+        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto">
+          <Link href="/dashboard" onClick={cerrarMenu} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${pathname === '/dashboard' ? 'bg-slate-800/80 text-blue-400' : 'hover:bg-slate-800/50 hover:text-white'}`}>
+            <LayoutDashboard className="w-5 h-5" />
+            <span className="font-medium">Inicio</span>
+          </Link>
+
+          {/* Filtramos botones: Un visor no debería ver la opción de subir Excel */}
+          {perfil?.rol !== 'visor' && (
+            <Link href="/dashboard/subir-excel" onClick={cerrarMenu} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${pathname === '/dashboard/subir-excel' ? 'bg-slate-800/80 text-blue-400' : 'hover:bg-slate-800/50 hover:text-white'}`}>
+              <FileSpreadsheet className="w-5 h-5" />
+              <span className="font-medium">Cargar Excel</span>
+            </Link>
+          )}
+
+          <Link href="/dashboard/registros" onClick={cerrarMenu} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${pathname === '/dashboard/registros' ? 'bg-slate-800/80 text-blue-400' : 'hover:bg-slate-800/50 hover:text-white'}`}>
+            <Users className="w-5 h-5" />
+            <span className="font-medium">Directorio SSOMA</span>
+          </Link>
+        </nav>
+        <Link href="/dashboard/capacitaciones" onClick={cerrarMenu} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${pathname === '/dashboard/capacitaciones' ? 'bg-slate-800/80 text-blue-400' : 'hover:bg-slate-800/50 hover:text-white'}`}>
+            <GraduationCap className="w-5 h-5" />
+            <span className="font-medium">Capacitaciones</span>
+          </Link>
+
+        <div className="p-4 border-t border-slate-800 shrink-0">
+          <button 
+            onClick={cerrarSesion}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Cerrar Sesión</span>
+          </button>
+        </div>
+      </aside>
+
+      {menuAbierto && (
+        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={cerrarMenu} />
+      )}
+
+      <main className="flex-1 overflow-y-auto w-full relative">
+        <div className="p-4 md:p-8">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}
+</file>
+
+<file path="app/page.tsx">
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import { Building2, Lock, Mail, Loader2, AlertCircle } from 'lucide-react';
+
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState('');
+  const router = useRouter();
+
+  const iniciarSesion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCargando(true);
+    setError('');
+
+    // Conexión real con la autenticación de Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError('Correo o contraseña incorrectos.');
+      setCargando(false);
+    } else {
+      // Si el acceso es correcto, pasa al sistema
+      router.push('/dashboard');
+      // Apagamos el botón para que esté listo si el usuario cierra sesión
+      setCargando(false);
+      // Limpiamos la contraseña por seguridad
+      setPassword(''); 
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      
+      {/* Círculos decorativos de fondo */}
+      <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
+      <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-cyan-600/20 rounded-full blur-3xl"></div>
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        <div className="flex justify-center items-center gap-3 mb-6">
+          <div className="bg-blue-600 p-3 rounded-xl">
+            <Building2 className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-3xl font-extrabold text-white tracking-wider">
+            TECSUR
+          </h1>
+        </div>
+        <h2 className="text-center text-lg text-slate-400 font-medium">
+          Sistema de Gestión SSOMA
+        </h2>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        <div className="bg-slate-800 py-8 px-4 shadow-2xl sm:rounded-2xl sm:px-10 border border-slate-700">
+          <form className="space-y-6" onSubmit={iniciarSesion}>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-300">
+                Correo Electrónico
+              </label>
+              <div className="mt-2 relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-slate-600 rounded-xl bg-slate-900 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm"
+                  placeholder="usuario@tecsur.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300">
+                Contraseña
+              </label>
+              <div className="mt-2 relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-slate-600 rounded-xl bg-slate-900 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                <p className="text-sm text-red-500">{error}</p>
+              </div>
+            )}
+
+            <div>
+              <button
+                type="submit"
+                disabled={cargando}
+                className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {cargando ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                {cargando ? 'Verificando...' : 'Ingresar al Sistema'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+</file>
+
+</files>
