@@ -40,10 +40,9 @@ export default function DashboardInicio() {
       return;
     }
 
-    // 2. Preparamos las consultas
-    // AHORA traemos la 'fecha_emo' para poder hacer el cálculo matemático
+    // 2. Preparamos las consultas (AHORA PEDIMOS fecha_curso)
     let queryTrabajadores = supabase.from('trabajadores').select('empresa, fecha_emo');
-    let queryCapacitaciones = supabase.from('capacitaciones').select('vigencia, estado, trabajadores!inner(empresa)');
+    let queryCapacitaciones = supabase.from('capacitaciones').select('fecha_curso, estado, trabajadores!inner(empresa)');
 
     if (perfil.rol === 'contratista' && perfil.empresa) {
       queryTrabajadores = queryTrabajadores.eq('empresa', perfil.empresa);
@@ -58,37 +57,45 @@ export default function DashboardInicio() {
       queryCapacitaciones
     ]);
 
-    // 3. Procesamos los datos de Cursos
     const listaTrabajadores = resTrabajadores.data || [];
     const listaCursos = resCapacitaciones.data || [];
     
-    const totalTrab = listaTrabajadores.length;
-    const totalCap = listaCursos.length;
-    const vigentes = listaCursos.filter(c => c.vigencia?.toLowerCase() === 'vigente').length;
-    const vencidos = listaCursos.filter(c => c.vigencia?.toLowerCase() === 'vencido').length;
-
-    // 4. CÁLCULO INTELIGENTE DE EMOs
-    let conteoEmosVencidos = 0;
     const hoy = new Date();
 
+    // 3. CÁLCULO INTELIGENTE DE EMOs
+    let conteoEmosVencidos = 0;
     listaTrabajadores.forEach(trabajador => {
       if (trabajador.fecha_emo) {
-        // Convertimos la fecha de la base de datos a un formato real
         const fechaEmo = new Date(trabajador.fecha_emo);
-        // Le sumamos exactamente 1 año para obtener el vencimiento
         const fechaVencimiento = new Date(fechaEmo);
         fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
+        if (fechaVencimiento < hoy) conteoEmosVencidos++;
+      }
+    });
 
-        // Si la fecha de vencimiento es menor a la fecha de hoy, está vencido
+    // 4. NUEVO: CÁLCULO INTELIGENTE DE CURSOS
+    let vigentes = 0;
+    let vencidos = 0;
+    
+    listaCursos.forEach(curso => {
+      if (curso.fecha_curso) {
+        const fechaCurso = new Date(curso.fecha_curso);
+        const fechaVencimiento = new Date(fechaCurso);
+        fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1); // +1 año de vigencia
+        
         if (fechaVencimiento < hoy) {
-          conteoEmosVencidos++;
+          vencidos++;
+        } else {
+          vigentes++;
         }
+      } else {
+        vencidos++; // Si no hay fecha de curso, se asume inválido/vencido
       }
     });
 
     setMetricas({
-      totalTrabajadores: totalTrab,
-      totalCapacitaciones: totalCap,
+      totalTrabajadores: listaTrabajadores.length,
+      totalCapacitaciones: listaCursos.length,
       cursosVigentes: vigentes,
       cursosVencidos: vencidos,
       emosVencidos: conteoEmosVencidos

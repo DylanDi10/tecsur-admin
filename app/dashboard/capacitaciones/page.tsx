@@ -72,6 +72,19 @@ export default function HistorialCapacitaciones() {
     }
     return { estado: 'Vigente', esPeligro: false, clase: 'bg-green-50 text-green-700 border-green-200' };
   };
+  // Motor de cálculo de Cursos (NUEVO)
+  const evaluarVigenciaCurso = (fechaStr: string) => {
+    if (!fechaStr) return { estado: 'Sin fecha', esPeligro: true, clase: 'bg-slate-100 text-slate-600 border-slate-200' };
+    
+    const hoy = new Date();
+    const fechaVencimiento = new Date(fechaStr);
+    fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1); // 1 año
+
+    if (fechaVencimiento < hoy) {
+      return { estado: 'Vencido', esPeligro: true, clase: 'bg-red-100 text-red-700 border-red-300 font-bold' };
+    }
+    return { estado: 'Vigente', esPeligro: false, clase: 'bg-green-50 text-green-700 border-green-200 font-bold' };
+  };
 
   const datosFiltrados = capacitaciones.filter(c => 
     (c.trabajadores?.nombres?.toLowerCase() || '').includes(busqueda.toLowerCase()) || 
@@ -136,13 +149,13 @@ export default function HistorialCapacitaciones() {
               </tr>
             ) : (
               datosFiltrados.map((c) => {
-                // SOLUCIÓN: Verificamos si Supabase mandó un array o un objeto único
                 const trabajador = Array.isArray(c.trabajadores) ? c.trabajadores[0] : c.trabajadores;
                 
-                const cursoVencido = c.vigencia?.toLowerCase() === 'vencido';
+                // AHORA USAMOS NUESTROS MOTORES INTELIGENTES
+                const estadoCurso = evaluarVigenciaCurso(c.fecha_curso);
                 const emo = evaluarEmo(trabajador?.fecha_emo);
                 
-                const filaBloqueada = cursoVencido || emo.esPeligro;
+                const filaBloqueada = estadoCurso.esPeligro || emo.esPeligro;
 
                 return (
                   <tr 
@@ -155,7 +168,6 @@ export default function HistorialCapacitaciones() {
                   >
                     <td className="py-3 px-4 border-r border-slate-100 text-center">
                       {filaBloqueada ? (
-                        // Agregamos también un emoji nativo por si la librería lucide-react está fallando
                         <div className="flex justify-center items-center gap-1 text-red-600 font-bold">
                           <AlertTriangle className="w-5 h-5 text-red-600" /> 
                         </div>
@@ -169,8 +181,9 @@ export default function HistorialCapacitaciones() {
                     <td className="py-3 px-4 text-indigo-700 font-bold border-r border-slate-100">{c.nombre_curso}</td>
                     
                     <td className="py-3 px-4 text-center border-r border-slate-100">
-                      <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${cursoVencido ? 'bg-red-100 text-red-700 border-red-300' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                        {c.vigencia || 'Sin dato'}
+                      {/* AHORA PINTA EL ESTADO CALCULADO, NO EL DEL EXCEL */}
+                      <span className={`px-2.5 py-1 rounded-md text-xs border ${estadoCurso.clase}`}>
+                        {estadoCurso.estado}
                       </span>
                     </td>
                     
