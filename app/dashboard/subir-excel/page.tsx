@@ -41,6 +41,20 @@ export default function SubirExcel() {
 
         const formatearFecha = (fecha: any) => {
           if (!fecha) return null;
+
+          // 1. Si Excel envía la fecha como número serial (ej. 45250)
+          if (typeof fecha === 'number' || (!isNaN(Number(fecha)) && !String(fecha).includes('/'))) {
+            const diasExcel = Number(fecha);
+            // 25569 es la diferencia en días entre la fecha base de Excel (1900) y Javascript (1970)
+            const fechaJS = new Date(Math.round((diasExcel - 25569) * 86400 * 1000));
+            
+            const anio = fechaJS.getUTCFullYear();
+            const mes = String(fechaJS.getUTCMonth() + 1).padStart(2, '0');
+            const dia = String(fechaJS.getUTCDate()).padStart(2, '0');
+            return `${anio}-${mes}-${dia}`;
+          }
+
+          // 2. Si Excel la envía como texto normal con barras (DD/MM/YYYY)
           const strFecha = String(fecha).trim();
           if (strFecha.includes('/')) {
             const partes = strFecha.split('/');
@@ -49,6 +63,7 @@ export default function SubirExcel() {
               return `${anio}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
             }
           }
+          
           return strFecha; 
         };
 
