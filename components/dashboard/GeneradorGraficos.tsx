@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   BarChart, Bar, PieChart, Pie, LineChart, Line, 
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell 
 } from 'recharts';
-import { Loader2, Settings2, BarChart3, PieChart as PieIcon, LineChart as LineIcon, Calculator, ShieldCheck, Calendar, X } from 'lucide-react';
+import { Loader2, Settings2, BarChart3, PieChart as PieIcon, LineChart as LineIcon, Calculator, ShieldCheck, Calendar, X, Download } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 type TablaConfig = {
   nombre: string;
@@ -60,12 +61,13 @@ export default function GeneradorGraficos() {
   const [agruparPor, setAgruparPor] = useState('empresa');
   const [metricaSuma, setMetricaSuma] = useState('hht_mensual');
   const [tipoGrafico, setTipoGrafico] = useState<'barras' | 'dona' | 'lineas'>('barras');
-  
-  // NUEVO ESTADO: Filtro de mes (formato YYYY-MM)
   const [filtroMes, setFiltroMes] = useState<string>(''); 
   
   const [datos, setDatos] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
+  
+  // NUEVO: Referencia para capturar el gráfico
+  const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const cargarPerfil = async () => {
@@ -83,7 +85,6 @@ export default function GeneradorGraficos() {
     if (CONFIGURACION_TABLAS[tabla].tipoOperacion === 'suma') {
       setMetricaSuma(CONFIGURACION_TABLAS[tabla].metricas![0].id);
     }
-    // Si cambia de tabla, limpiamos el filtro de fecha
     setFiltroMes('');
   }, [tabla]);
 
@@ -101,7 +102,6 @@ export default function GeneradorGraficos() {
 
       let query = supabase.from(tabla).select(columnasSelect);
 
-      // 1. FILTROS DE SEGURIDAD
       if (perfilUsuario.rol === 'contratista' && perfilUsuario.empresa) {
         if (tabla === 'capacitaciones') {
           query = query.eq('trabajadores.empresa', perfilUsuario.empresa);
@@ -112,16 +112,13 @@ export default function GeneradorGraficos() {
         query = query.eq(tabla === 'capacitaciones' ? 'trabajadores.empresa' : 'empresa', 'ACCESO_DENEGADO');
       }
 
-      // 2. NUEVO: FILTRO DE FECHA (Solo para tabla HHT si el usuario seleccionó un mes)
       if (tabla === 'registro_hht' && filtroMes) {
         const [año, mes] = filtroMes.split('-');
-        // Calculamos el último día de ese mes exacto
         const ultimoDia = new Date(Number(año), Number(mes), 0).getDate();
         
         const fechaInicio = `${filtroMes}-01`;
         const fechaFin = `${filtroMes}-${ultimoDia}`;
         
-        // Buscamos registros que estén dentro de ese rango de fechas
         query = query.gte('fecha', fechaInicio).lte('fecha', fechaFin);
       }
 
@@ -155,7 +152,22 @@ export default function GeneradorGraficos() {
     };
 
     if (agruparPor && perfilUsuario) generarDatos();
-  }, [tabla, agruparPor, metricaSuma, perfilUsuario, filtroMes]); // Añadimos filtroMes a las dependencias
+  }, [tabla, agruparPor, metricaSuma, perfilUsuario, filtroMes]);
+
+  // NUEVO: Función para descargar la imagen
+  const descargarGrafico = async () => {
+    if (!chartRef.current) return;
+    try {
+      const canvas = await html2canvas(chartRef.current, { backgroundColor: '#ffffff', scale: 2 });
+      const url = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `Reporte_${tabla}_${new Date().toISOString().split('T')[0]}.png`;
+      link.href = url;
+      link.click();
+    } catch (err) {
+      console.error("Error al exportar la imagen", err);
+    }
+  };
 
   const renderizarGrafico = () => {
     if (datos.length === 0) return <div className="flex h-full items-center justify-center text-slate-400">No hay datos suficientes para los filtros aplicados</div>;
@@ -211,7 +223,7 @@ export default function GeneradorGraficos() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px]">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[550px]">
       <div className="bg-slate-50 p-4 border-b border-slate-200 flex flex-wrap gap-4 items-center justify-between">
         <div className="flex items-center gap-2 text-slate-700 font-bold">
           <Settings2 className="w-5 h-5 text-blue-600" />
@@ -235,7 +247,6 @@ export default function GeneradorGraficos() {
             ))}
           </select>
 
-          {/* NUEVO: Selector de Mes (Solo visible si es tabla HHT) */}
           {tabla === 'registro_hht' && (
             <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-3 overflow-hidden">
               <Calendar className="w-4 h-4 text-slate-500" />
@@ -250,7 +261,6 @@ export default function GeneradorGraficos() {
                 <button 
                   onClick={() => setFiltroMes('')} 
                   className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-md transition-colors"
-                  title="Quitar filtro de fecha"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -283,21 +293,34 @@ export default function GeneradorGraficos() {
             ))}
           </select>
 
-          <div className="flex bg-slate-200 p-1 rounded-lg border border-slate-300">
+          <div className="flex bg-slate-200 p-1 rounded-lg border border-slate-300 mr-2">
             <button onClick={() => setTipoGrafico('barras')} className={`p-1.5 rounded-md ${tipoGrafico === 'barras' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}><BarChart3 className="w-4 h-4" /></button>
             <button onClick={() => setTipoGrafico('lineas')} className={`p-1.5 rounded-md ${tipoGrafico === 'lineas' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}><LineIcon className="w-4 h-4" /></button>
             <button onClick={() => setTipoGrafico('dona')} className={`p-1.5 rounded-md ${tipoGrafico === 'dona' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}><PieIcon className="w-4 h-4" /></button>
           </div>
+
+          {/* BOTÓN DE DESCARGA */}
+          <button 
+            onClick={descargarGrafico} 
+            disabled={datos.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white font-semibold rounded-lg text-sm hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            Descargar
+          </button>
         </div>
       </div>
 
+      {/* NUEVO: div con ref para capturar la imagen con fondo blanco estricto */}
       <div className="flex-1 p-6 relative w-full h-full">
         {cargando && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 backdrop-blur-sm">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-20 backdrop-blur-sm">
             <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
           </div>
         )}
-        {renderizarGrafico()}
+        <div ref={chartRef} className="w-full h-full bg-white p-2">
+          {renderizarGrafico()}
+        </div>
       </div>
     </div>
   );
