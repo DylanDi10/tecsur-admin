@@ -60,16 +60,35 @@ export default function DashboardInicio() {
     const listaTrabajadores = resTrabajadores.data || [];
     const listaCursos = resCapacitaciones.data || [];
     
-    const hoy = new Date();
+    // Función auxiliar para calcular vigencias sin errores de zona horaria
+    const estaVigente = (fechaStr: string) => {
+      if (!fechaStr) return false;
+      let fechaReal;
+      
+      if (String(fechaStr).includes('/')) {
+        const [dia, mes, anio] = String(fechaStr).split('/');
+        fechaReal = new Date(Number(anio), Number(mes) - 1, Number(dia));
+      } else if (String(fechaStr).includes('-')) {
+        const [anio, mes, dia] = String(fechaStr).split('-');
+        fechaReal = new Date(Number(anio), Number(mes) - 1, Number(dia));
+      } else {
+        return false;
+      }
+
+      const fechaVencimiento = new Date(fechaReal);
+      fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
+      
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0); // Limpiamos la hora exacta, solo comparamos días
+      
+      return fechaVencimiento >= hoy;
+    };
 
     // 3. CÁLCULO INTELIGENTE DE EMOs
     let conteoEmosVencidos = 0;
     listaTrabajadores.forEach(trabajador => {
-      if (trabajador.fecha_emo) {
-        const fechaEmo = new Date(trabajador.fecha_emo);
-        const fechaVencimiento = new Date(fechaEmo);
-        fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
-        if (fechaVencimiento < hoy) conteoEmosVencidos++;
+      if (trabajador.fecha_emo && !estaVigente(trabajador.fecha_emo)) {
+        conteoEmosVencidos++;
       }
     });
 
@@ -78,18 +97,10 @@ export default function DashboardInicio() {
     let vencidos = 0;
     
     listaCursos.forEach(curso => {
-      if (curso.fecha_curso) {
-        const fechaCurso = new Date(curso.fecha_curso);
-        const fechaVencimiento = new Date(fechaCurso);
-        fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1); // +1 año de vigencia
-        
-        if (fechaVencimiento < hoy) {
-          vencidos++;
-        } else {
-          vigentes++;
-        }
+      if (estaVigente(curso.fecha_curso)) {
+        vigentes++;
       } else {
-        vencidos++; // Si no hay fecha de curso, se asume inválido/vencido
+        vencidos++;
       }
     });
 
