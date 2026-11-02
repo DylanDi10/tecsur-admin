@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Edit2, X, Save, Loader2, Columns, ShieldAlert } from 'lucide-react';
+import { Search, Edit2, X, Save, Loader2, Columns, AlertTriangle, FolderOpen, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase'; 
+import Link from 'next/link';
 
 export default function DirectorioSSOMA() {
   const [busqueda, setBusqueda] = useState('');
@@ -45,7 +46,6 @@ export default function DirectorioSSOMA() {
   const cargarDatosYPermisos = async () => {
     setCargando(true);
     
-    // 1. Identificamos quién está viendo la página
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       setCargando(false);
@@ -60,28 +60,21 @@ export default function DirectorioSSOMA() {
       
     setPerfilUsuario(perfil);
 
-    // 2. SEGURIDAD EXTREMA: Si el usuario no tiene perfil asignado, bloqueamos todo.
     if (!perfil || !perfil.rol) {
       setTrabajadores([]);
       setCargando(false);
       return;
     }
 
-    // 3. Construimos la consulta base
     let query = supabase.from('trabajadores').select('*').order('nombres', { ascending: true });
 
-    // 4. REGLAS DE ORO ESTRICTAS
     if (perfil.rol === 'admin') {
-      // Si es ADMIN: no ponemos filtros, ve todo.
     } else if (perfil.rol === 'contratista' && perfil.empresa) {
-      // Si es CONTRATISTA: filtramos estrictamente por el nombre exacto de su empresa.
       query = query.eq('empresa', perfil.empresa);
     } else {
-      // Si es Visor o cualquier otro rol sin empresa definida, forzamos que no vea nada.
       query = query.eq('empresa', 'NINGUNA_EMPRESA_SECRETA');
     }
 
-    // 5. Ejecutamos la búsqueda segura
     const { data, error } = await query;
       
     if (!error && data) {
@@ -90,8 +83,34 @@ export default function DirectorioSSOMA() {
     setCargando(false);
   };
 
+  // Motor Inteligente de EMOs
+  const evaluarEmo = (fechaStr: string) => {
+    if (!fechaStr) return { estado: 'Sin EMO', esPeligro: true, clase: 'bg-slate-100 text-slate-600 border-slate-200' };
+    
+    let fechaReal;
+    if (String(fechaStr).includes('/')) {
+      const [dia, mes, anio] = String(fechaStr).split('/');
+      fechaReal = new Date(Number(anio), Number(mes) - 1, Number(dia));
+    } else if (String(fechaStr).includes('-')) {
+      const [anio, mes, dia] = String(fechaStr).split('-');
+      fechaReal = new Date(Number(anio), Number(mes) - 1, Number(dia));
+    } else {
+      return { estado: 'Fecha Inválida', esPeligro: true, clase: 'bg-red-100 text-red-700 border-red-300' };
+    }
+
+    const fechaVencimiento = new Date(fechaReal);
+    fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
+    
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    if (fechaVencimiento < hoy) {
+      return { estado: 'Vencido', esPeligro: true, clase: 'bg-red-100 text-red-700 border-red-300 font-bold' };
+    }
+    return { estado: 'Vigente', esPeligro: false, clase: 'bg-green-50 text-green-700 border-green-200 font-bold' };
+  };
+
   const abrirModal = (trabajador: any) => {
-    // Protección extra: Si un visor de alguna forma burla la interfaz, el sistema lo bloquea aquí
     if (perfilUsuario?.rol === 'visor') {
       alert('Tu perfil es de solo lectura. No tienes permisos para editar.');
       return;
@@ -126,6 +145,7 @@ export default function DirectorioSSOMA() {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[calc(100vh-8rem)]">
       
+      {/* CABECERA CON BÚSQUEDA Y COLUMNAS */}
       <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Personal Activo</h2>
@@ -181,6 +201,7 @@ export default function DirectorioSSOMA() {
         </div>
       </div>
 
+      {/* TABLA PRINCIPAL */}
       <div className="overflow-auto flex-1 relative">
         <table className="w-full text-left border-collapse whitespace-nowrap min-w-max">
           <thead className="sticky top-0 z-20">
@@ -194,35 +215,69 @@ export default function DirectorioSSOMA() {
               {columnasVisibles.genero && <th className="py-3 px-4 font-bold border-r border-slate-200">Género</th>}
               {columnasVisibles.nacionalidad && <th className="py-3 px-4 font-bold border-r border-slate-200">Nacionalidad</th>}
               {columnasVisibles.distrito && <th className="py-3 px-4 font-bold border-r border-slate-200">Distrito</th>}
-              {columnasVisibles.fecha_emo && <th className="py-3 px-4 font-bold border-r border-slate-200 text-blue-700">F. EMO</th>}
+              {columnasVisibles.fecha_emo && <th className="py-3 px-4 font-bold border-r border-slate-200 text-blue-700 text-center">Estado EMO</th>}
               {columnasVisibles.fecha_ingreso && <th className="py-3 px-4 font-bold border-r border-slate-200 text-green-700">F. Ingreso</th>}
               {columnasVisibles.fecha_cese && <th className="py-3 px-4 font-bold border-r border-slate-200 text-red-700">F. Cese</th>}
               
-              {/* Ocultamos la columna de Acciones si es Visor */}
               {perfilUsuario?.rol !== 'visor' && (
                 <th className="py-3 px-4 font-bold text-center sticky right-0 bg-slate-100 shadow-[-4px_0_10px_rgba(0,0,0,0.1)] z-30">Acciones</th>
               )}
             </tr>
           </thead>
           <tbody>
+            
+            {/* 1. ESTADO: CARGANDO (Skeletons) */}
             {cargando ? (
               <tr>
-                <td colSpan={13} className="py-12 text-center text-slate-500">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-500" />
-                  Cargando base de datos segura...
+                <td colSpan={20} className="p-6">
+                  <div className="space-y-4">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="flex items-center gap-4 animate-pulse">
+                        <div className="h-10 bg-slate-100 rounded-lg w-full"></div>
+                      </div>
+                    ))}
+                  </div>
                 </td>
               </tr>
-            ) : trabajadoresFiltrados.length === 0 ? (
+            ) : 
+            
+            /* 2. ESTADO: VACÍO (Ilustración) */
+            trabajadoresFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={13} className="py-12 text-center text-slate-500">
-                  No se encontraron registros {perfilUsuario?.rol === 'contratista' ? `para la empresa ${perfilUsuario?.empresa}` : ''}.
+                <td colSpan={20} className="py-20 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="bg-slate-50 p-6 rounded-full mb-6 border border-slate-100 shadow-inner">
+                      <FolderOpen className="w-16 h-16 text-slate-300" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Directorio Vacío</h3>
+                    <p className="text-slate-500 max-w-md mx-auto mb-8 font-medium">
+                      No se encontraron registros. Sube tu archivo Excel para comenzar a gestionar a tu personal.
+                    </p>
+                    {perfilUsuario?.rol !== 'visor' && (
+                      <Link 
+                        href="/dashboard/subir-excel" 
+                        className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-600/20 transition-all hover:-translate-y-0.5"
+                      >
+                        <Plus className="w-5 h-5" />
+                        Cargar Excel
+                      </Link>
+                    )}
+                  </div>
                 </td>
               </tr>
-            ) : (
-              trabajadoresFiltrados.map((t) => (
-                <tr key={t.dni} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+            ) : 
+            
+            /* 3. ESTADO: DATOS REALES */
+            (
+              trabajadoresFiltrados.map((t) => {
+                const emo = evaluarEmo(t.fecha_emo);
+
+                return (
+                <tr key={t.dni} className={`border-b border-slate-100 transition-colors ${emo.esPeligro ? 'bg-red-50 hover:bg-red-100/70' : 'hover:bg-slate-50'}`}>
                   {columnasVisibles.dni && <td className="py-3 px-4 font-medium text-slate-800 border-r border-slate-100">{t.dni}</td>}
-                  {columnasVisibles.nombres && <td className="py-3 px-4 text-slate-700 font-medium border-r border-slate-100">{t.nombres}</td>}
+                  {columnasVisibles.nombres && <td className="py-3 px-4 text-slate-700 font-medium border-r border-slate-100 flex items-center gap-2">
+                    {emo.esPeligro && <AlertTriangle className="w-4 h-4 text-red-500" />} {t.nombres}
+                  </td>}
                   {columnasVisibles.empresa && <td className="py-3 px-4 text-slate-600 border-r border-slate-100 font-semibold">{t.empresa || '-'}</td>}
                   {columnasVisibles.cargo && <td className="py-3 px-4 border-r border-slate-100"><span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs font-bold border border-blue-100">{t.cargo || 'SIN CARGO'}</span></td>}
                   {columnasVisibles.area && <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{t.area || '-'}</td>}
@@ -230,11 +285,19 @@ export default function DirectorioSSOMA() {
                   {columnasVisibles.genero && <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{t.genero || '-'}</td>}
                   {columnasVisibles.nacionalidad && <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{t.nacionalidad || '-'}</td>}
                   {columnasVisibles.distrito && <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{t.distrito || '-'}</td>}
-                  {columnasVisibles.fecha_emo && <td className="py-3 px-4 text-slate-800 font-medium border-r border-slate-100">{t.fecha_emo || '-'}</td>}
+                  
+                  {/* Celda Inteligente de EMO */}
+                  {columnasVisibles.fecha_emo && (
+                    <td className="py-3 px-4 text-center border-r border-slate-100">
+                      <span className={`px-2.5 py-1 rounded-md text-xs border ${emo.clase}`}>
+                        {emo.estado}
+                      </span>
+                    </td>
+                  )}
+                  
                   {columnasVisibles.fecha_ingreso && <td className="py-3 px-4 text-slate-800 font-medium border-r border-slate-100">{t.fecha_ingreso || '-'}</td>}
                   {columnasVisibles.fecha_cese && <td className="py-3 px-4 text-slate-800 font-medium border-r border-slate-100">{t.fecha_cese || '-'}</td>}
                   
-                  {/* Ocultamos el botón de editar si es visor */}
                   {perfilUsuario?.rol !== 'visor' && (
                     <td className="py-2 px-4 text-center sticky right-0 bg-white/95 backdrop-blur-sm shadow-[-4px_0_10px_rgba(0,0,0,0.05)] border-l border-slate-200">
                       <button 
@@ -247,13 +310,13 @@ export default function DirectorioSSOMA() {
                     </td>
                   )}
                 </tr>
-              ))
+              )})
             )}
           </tbody>
         </table>
       </div>
 
-      {/* MODAL DE EDICIÓN SE MANTIENE IGUAL */}
+      {/* MODAL DE EDICIÓN INTACTO */}
       {modalAbierto && trabajadorEditando && (
          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8 animate-in fade-in zoom-in duration-200">

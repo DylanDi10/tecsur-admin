@@ -14,12 +14,13 @@ import {
   ChevronRight, 
   Building2, 
   ShieldCheck,
-  Settings
+  Menu,
+  X
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  // NUEVO: Estado para controlar si el menú está colapsado o no
-  const [colapsado, setColapsado] = useState(false);
+  const [colapsado, setColapsado] = useState(false); // Para PC
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false); // NUEVO: Para Celulares
   
   const [perfilUsuario, setPerfilUsuario] = useState<any>(null);
   const pathname = usePathname();
@@ -38,12 +39,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     cargarPerfil();
   }, [router]);
 
+  // NUEVO: Cerrar el menú flotante en celular automáticamente al cambiar de página
+  useEffect(() => {
+    setMenuMovilAbierto(false);
+  }, [pathname]);
+
   const cerrarSesion = async () => {
     await supabase.auth.signOut();
     router.push('/');
   };
 
-  // Puedes ajustar las rutas según cómo hayas nombrado tus carpetas
   const menuItems = [
     { nombre: 'Dashboard', path: '/dashboard', icon: BarChart3 },
     { nombre: 'Directorio SSOMA', path: '/dashboard/registros', icon: Users },
@@ -52,24 +57,63 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="h-screen w-full flex flex-col md:flex-row bg-slate-50 overflow-hidden">
       
-      {/* SIDEBAR DINÁMICO */}
+      {/* HEADER MÓVIL (Solo visible en pantallas pequeñas) */}
+      <div className="md:hidden bg-slate-900 text-white p-4 flex items-center justify-between shadow-md z-30 flex-shrink-0">
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <div className="bg-blue-600 p-1.5 rounded-lg">
+            <ShieldCheck className="w-5 h-5 text-white" />
+          </div>
+          <span className="font-bold text-lg tracking-wide">TECSUR</span>
+        </Link>
+        <button 
+          onClick={() => {
+            setColapsado(false); // Si estaba colapsado en PC, lo forzamos a abrirse en móvil
+            setMenuMovilAbierto(true);
+          }}
+          className="p-2 bg-slate-800 rounded-lg text-slate-300 hover:text-white transition-colors"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* BACKDROP MÓVIL (Fondo oscuro detrás del menú cuando se abre en celular) */}
+      {menuMovilAbierto && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity"
+          onClick={() => setMenuMovilAbierto(false)}
+        />
+      )}
+
+      {/* SIDEBAR (Ahora es inteligente: Fijo en móvil, Relativo en PC) */}
       <aside 
-        className={`bg-slate-900 text-slate-300 flex flex-col transition-all duration-300 ease-in-out relative ${
-          colapsado ? 'w-20' : 'w-64'
-        }`}
+        className={`bg-slate-900 text-slate-300 flex flex-col transition-all duration-300 ease-in-out h-full fixed md:relative z-50 flex-shrink-0 w-64 shadow-2xl md:shadow-none
+        ${menuMovilAbierto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} 
+        ${colapsado ? 'md:w-20' : 'md:w-64'}`}
       >
-        {/* Botón flotante para colapsar/expandir */}
+        {/* Botón flotante para PC */}
         <button 
           onClick={() => setColapsado(!colapsado)}
-          className="absolute -right-3 top-8 bg-blue-600 hover:bg-blue-500 text-white rounded-full p-1.5 shadow-lg z-10 transition-colors"
+          className="hidden md:flex absolute -right-3 top-8 bg-blue-600 hover:bg-blue-500 text-white rounded-full p-1.5 shadow-lg z-10 transition-colors"
         >
           {colapsado ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
 
+        {/* Botón Cerrar (X) para Celular */}
+        <button 
+          onClick={() => setMenuMovilAbierto(false)}
+          className="md:hidden absolute right-4 top-6 text-slate-400 hover:text-white z-20"
+        >
+          <X className="w-6 h-6" />
+        </button>
+
         {/* Cabecera del Sidebar */}
-        <div className={`p-4 flex items-center border-b border-slate-800 h-20 ${colapsado ? 'justify-center' : 'gap-3'}`}>
+        <Link 
+          href="/dashboard" 
+          className={`p-4 flex items-center border-b border-slate-800 h-20 hover:bg-slate-800/50 transition-colors cursor-pointer ${colapsado ? 'justify-center' : 'gap-3'}`}
+          title="Ir al inicio"
+        >
           <div className="bg-blue-600 p-2.5 rounded-lg flex-shrink-0 shadow-md">
             <ShieldCheck className="w-6 h-6 text-white" />
           </div>
@@ -79,7 +123,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <p className="text-xs text-blue-400 whitespace-nowrap font-medium">SSOMA Portal</p>
             </div>
           )}
-        </div>
+        </Link>
 
         {/* Info del Usuario */}
         <div className={`p-4 border-b border-slate-800 flex flex-col ${colapsado ? 'items-center' : ''}`}>
@@ -102,7 +146,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
           ) : (
-            // Versión colapsada del perfil (inicial del correo)
             <div 
               className="w-10 h-10 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center flex-shrink-0" 
               title={perfilUsuario?.email}
@@ -117,7 +160,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Navegación principal */}
         <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto overflow-x-hidden">
           {menuItems.map((item) => {
-            // Oculta opciones de admin (como Subir Excel) a los contratistas
             if (item.adminOnly && perfilUsuario?.rol === 'contratista') return null;
 
             const activo = pathname === item.path;
@@ -152,8 +194,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 overflow-auto bg-slate-50 flex flex-col relative">
+      {/* CONTENIDO PRINCIPAL (También adaptado con menos padding en celular) */}
+      <main className="flex-1 h-full overflow-y-auto bg-slate-50 p-4 md:p-8 relative">
         {children}
       </main>
     </div>
