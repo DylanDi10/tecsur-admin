@@ -34,7 +34,6 @@ export default function HistorialCapacitaciones() {
       return;
     }
 
-    // AHORA pedimos explícitamente la 'fecha_emo' de la tabla trabajadores
     let query = supabase
       .from('capacitaciones')
       .select(`
@@ -54,7 +53,23 @@ export default function HistorialCapacitaciones() {
     const { data, error } = await query;
       
     if (!error && data) {
-      setCapacitaciones(data);
+      // FILTRO INTELIGENTE: Conservar solo el registro más reciente
+      const cursosUnicos: any[] = []; 
+      const historial = new Set();
+
+      data.forEach((registro) => {
+        // Creamos una llave única combinando DNI y Nombre del Curso
+        const llaveUnica = `${registro.dni}-${registro.nombre_curso}`;
+        
+        // Como la lista ya viene ordenada por fecha (el más nuevo arriba),
+        // solo guardamos el primero que encontremos y descartamos los viejos.
+        if (!historial.has(llaveUnica)) {
+          historial.add(llaveUnica);
+          cursosUnicos.push(registro);
+        }
+      });
+
+      setCapacitaciones(cursosUnicos);
     }
     setCargando(false);
   };
