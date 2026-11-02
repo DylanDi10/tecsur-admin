@@ -1,42 +1,41 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, LayoutDashboard, FileSpreadsheet, Users, LogOut, Menu, X, Loader2, ShieldCheck, User, GraduationCap } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { 
+  Users, 
+  GraduationCap, 
+  BarChart3, 
+  UploadCloud, 
+  LogOut, 
+  ChevronLeft, 
+  ChevronRight, 
+  Building2, 
+  ShieldCheck,
+  Settings
+} from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // NUEVO: Estado para controlar si el menú está colapsado o no
+  const [colapsado, setColapsado] = useState(false);
+  
+  const [perfilUsuario, setPerfilUsuario] = useState<any>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const [menuAbierto, setMenuAbierto] = useState(false);
-  const [verificando, setVerificando] = useState(true);
-  
-  // NUEVO: Estado para guardar el perfil del usuario
-  const [perfil, setPerfil] = useState<any>(null);
 
   useEffect(() => {
-    const verificarSesion = async () => {
+    const cargarPerfil = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        router.push('/'); 
+      if (session) {
+        const { data } = await supabase.from('perfiles').select('*').eq('id', session.user.id).single();
+        setPerfilUsuario(data);
       } else {
-        // Si hay sesión, buscamos qué rol tiene este usuario en la tabla "perfiles"
-        const { data: datosPerfil } = await supabase
-          .from('perfiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-          
-        if (datosPerfil) {
-          setPerfil(datosPerfil);
-        }
-        
-        setVerificando(false); 
+        router.push('/');
       }
     };
-    verificarSesion();
+    cargarPerfil();
   }, [router]);
 
   const cerrarSesion = async () => {
@@ -44,108 +43,118 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/');
   };
 
-  const cerrarMenu = () => setMenuAbierto(false);
-
-  if (verificando) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-900">
-        <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
-        <p className="text-slate-300 font-medium">Verificando credenciales y permisos...</p>
-      </div>
-    );
-  }
+  // Puedes ajustar las rutas según cómo hayas nombrado tus carpetas
+  const menuItems = [
+    { nombre: 'Dashboard', path: '/dashboard', icon: BarChart3 },
+    { nombre: 'Directorio SSOMA', path: '/dashboard/registros', icon: Users },
+    { nombre: 'Capacitaciones', path: '/dashboard/capacitaciones', icon: GraduationCap },
+    { nombre: 'Cargar Excel', path: '/dashboard/subir-excel', icon: UploadCloud, adminOnly: true },
+  ];
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex">
       
-      {/* BARRA SUPERIOR PARA CELULAR */}
-      <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-[#0B1120] flex items-center justify-between px-4 z-50 shadow-md">
-        <div className="flex items-center">
-          <Building2 className="w-6 h-6 text-blue-500 mr-2" />
-          <span className="text-white font-bold tracking-wider text-lg">TECSUR</span>
-        </div>
-        <button onClick={() => setMenuAbierto(!menuAbierto)} className="text-white p-2">
-          {menuAbierto ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+      {/* SIDEBAR DINÁMICO */}
+      <aside 
+        className={`bg-slate-900 text-slate-300 flex flex-col transition-all duration-300 ease-in-out relative ${
+          colapsado ? 'w-20' : 'w-64'
+        }`}
+      >
+        {/* Botón flotante para colapsar/expandir */}
+        <button 
+          onClick={() => setColapsado(!colapsado)}
+          className="absolute -right-3 top-8 bg-blue-600 hover:bg-blue-500 text-white rounded-full p-1.5 shadow-lg z-10 transition-colors"
+        >
+          {colapsado ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
-      </div>
 
-      {/* MENÚ LATERAL (Sidebar) */}
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#0B1120] text-slate-300 flex flex-col transition-transform duration-300 ease-in-out ${
-        menuAbierto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      }`}>
-        
-        <div className="hidden md:flex h-16 items-center px-6 border-b border-slate-800 shrink-0">
-          <Building2 className="w-6 h-6 text-blue-500 mr-3" />
-          <span className="text-white font-bold tracking-wider text-lg">TECSUR</span>
+        {/* Cabecera del Sidebar */}
+        <div className={`p-4 flex items-center border-b border-slate-800 h-20 ${colapsado ? 'justify-center' : 'gap-3'}`}>
+          <div className="bg-blue-600 p-2.5 rounded-lg flex-shrink-0 shadow-md">
+            <ShieldCheck className="w-6 h-6 text-white" />
+          </div>
+          {!colapsado && (
+            <div className="overflow-hidden transition-opacity duration-300">
+              <h1 className="text-white font-bold text-lg whitespace-nowrap tracking-wide">TECSUR</h1>
+              <p className="text-xs text-blue-400 whitespace-nowrap font-medium">SSOMA Portal</p>
+            </div>
+          )}
         </div>
 
-        {/* NUEVO: Tarjeta de Usuario Logueado */}
-        <div className="px-4 py-6 border-b border-slate-800 bg-slate-900/50 mt-16 md:mt-0">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-blue-600/20 p-2 rounded-lg">
-              {perfil?.rol === 'admin' ? (
-                <ShieldCheck className="w-5 h-5 text-blue-400" />
-              ) : (
-                <User className="w-5 h-5 text-slate-400" />
+        {/* Info del Usuario */}
+        <div className={`p-4 border-b border-slate-800 flex flex-col ${colapsado ? 'items-center' : ''}`}>
+          {!colapsado ? (
+            <div className="overflow-hidden">
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1 font-bold">Usuario conectado</p>
+              <p className="text-sm text-slate-200 font-semibold truncate" title={perfilUsuario?.email}>
+                {perfilUsuario?.email || 'Cargando...'}
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <span className="bg-blue-500/20 text-blue-400 text-xs px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">
+                  {perfilUsuario?.rol || 'Rol'}
+                </span>
+              </div>
+              {perfilUsuario?.empresa && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-400 font-medium bg-slate-800/50 p-2 rounded-lg">
+                  <Building2 className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                  <span className="truncate">{perfilUsuario.empresa}</span>
+                </div>
               )}
             </div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-bold text-white truncate" title={perfil?.email}>
-                {perfil?.email?.split('@')[0]} {/* Muestra solo el nombre antes del @ */}
-              </p>
-              <p className="text-xs text-blue-400 font-semibold uppercase tracking-wider">
-                {perfil?.rol || 'Cargando...'}
-              </p>
+          ) : (
+            // Versión colapsada del perfil (inicial del correo)
+            <div 
+              className="w-10 h-10 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center flex-shrink-0" 
+              title={perfilUsuario?.email}
+            >
+              <span className="text-blue-400 font-bold text-sm">
+                {perfilUsuario?.email ? perfilUsuario.email.charAt(0).toUpperCase() : '?'}
+              </span>
             </div>
-          </div>
-          <div className="text-xs text-slate-500 font-medium px-1">
-            Empresa: <span className="text-slate-300">{perfil?.empresa || 'No asignada'}</span>
-          </div>
+          )}
         </div>
 
-        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto">
-          <Link href="/dashboard" onClick={cerrarMenu} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${pathname === '/dashboard' ? 'bg-slate-800/80 text-blue-400' : 'hover:bg-slate-800/50 hover:text-white'}`}>
-            <LayoutDashboard className="w-5 h-5" />
-            <span className="font-medium">Inicio</span>
-          </Link>
+        {/* Navegación principal */}
+        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto overflow-x-hidden">
+          {menuItems.map((item) => {
+            // Oculta opciones de admin (como Subir Excel) a los contratistas
+            if (item.adminOnly && perfilUsuario?.rol === 'contratista') return null;
 
-          {/* Filtramos botones: Un visor no debería ver la opción de subir Excel */}
-          {perfil?.rol !== 'visor' && (
-            <Link href="/dashboard/subir-excel" onClick={cerrarMenu} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${pathname === '/dashboard/subir-excel' ? 'bg-slate-800/80 text-blue-400' : 'hover:bg-slate-800/50 hover:text-white'}`}>
-              <FileSpreadsheet className="w-5 h-5" />
-              <span className="font-medium">Cargar Excel</span>
-            </Link>
-          )}
-
-          <Link href="/dashboard/registros" onClick={cerrarMenu} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${pathname === '/dashboard/registros' ? 'bg-slate-800/80 text-blue-400' : 'hover:bg-slate-800/50 hover:text-white'}`}>
-            <Users className="w-5 h-5" />
-            <span className="font-medium">Directorio SSOMA</span>
-          </Link>
+            const activo = pathname === item.path;
+            return (
+              <Link 
+                key={item.path} 
+                href={item.path}
+                title={colapsado ? item.nombre : ''}
+                className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group ${
+                  activo 
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                } ${colapsado ? 'justify-center' : ''}`}
+              >
+                <item.icon className={`w-5 h-5 flex-shrink-0 ${activo ? 'text-white' : 'text-slate-500 group-hover:text-white transition-colors'}`} />
+                {!colapsado && <span className="font-medium whitespace-nowrap">{item.nombre}</span>}
+              </Link>
+            );
+          })}
         </nav>
-        <Link href="/dashboard/capacitaciones" onClick={cerrarMenu} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${pathname === '/dashboard/capacitaciones' ? 'bg-slate-800/80 text-blue-400' : 'hover:bg-slate-800/50 hover:text-white'}`}>
-            <GraduationCap className="w-5 h-5" />
-            <span className="font-medium">Capacitaciones</span>
-          </Link>
 
-        <div className="p-4 border-t border-slate-800 shrink-0">
+        {/* Botón de Cerrar Sesión */}
+        <div className="p-4 border-t border-slate-800">
           <button 
             onClick={cerrarSesion}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+            title={colapsado ? "Cerrar Sesión" : ""}
+            className={`flex items-center gap-3 w-full px-3 py-3 rounded-xl hover:bg-red-500/10 hover:text-red-400 transition-colors text-slate-400 group ${colapsado ? 'justify-center' : ''}`}
           >
-            <LogOut className="w-5 h-5" />
-            <span className="font-medium">Cerrar Sesión</span>
+            <LogOut className="w-5 h-5 flex-shrink-0 group-hover:text-red-400 transition-colors" />
+            {!colapsado && <span className="font-medium whitespace-nowrap">Cerrar Sesión</span>}
           </button>
         </div>
       </aside>
 
-      {menuAbierto && (
-        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={cerrarMenu} />
-      )}
-
-      <main className="flex-1 overflow-y-auto w-full relative">
-        <div className="p-4 md:p-8">
-          {children}
-        </div>
+      {/* CONTENIDO PRINCIPAL */}
+      <main className="flex-1 overflow-auto bg-slate-50 flex flex-col relative">
+        {children}
       </main>
     </div>
   );
